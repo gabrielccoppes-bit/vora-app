@@ -1,0 +1,67 @@
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
+
+import { faixaSalarial, type Servico, type Vaga } from '@/lib/api';
+import { dinheiro, tempoRelativo } from '@/lib/validacao';
+import { C, F } from '@/theme';
+import { Icone } from './icone';
+import { Avatar, BotaoIcone, T, Tag } from './ui';
+
+export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: boolean; aoSalvar?: () => void }) {
+  return (
+    <Pressable onPress={() => router.push(`/vaga/${vaga.id}`)} style={({ pressed }) => [st.vaga, pressed && { transform: [{ scale: 0.99 }] }]}>
+      <View style={st.linha}>
+        <Avatar nome={vaga.empresa?.nome ?? '?'} tamanho={44} quadrado />
+        <View style={{ flex: 1 }}>
+          <T style={{ color: C.ink, fontFamily: F.interSemi }} numberOfLines={1}>
+            {vaga.empresa?.nome}
+          </T>
+          <T style={{ color: '#7A6A61', fontSize: 12.5 }} numberOfLines={1}>
+            {tempoRelativo(vaga.criado_em)} · {vaga.empresa?.cidade}, {vaga.empresa?.uf}
+          </T>
+        </View>
+        {aoSalvar ? <BotaoIcone nome="salvar" cor={C.ink} preenchido={salvo} onPress={aoSalvar} rotulo={salvo ? 'Remover dos salvos' : 'Salvar vaga'} /> : null}
+      </View>
+      <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 17, marginTop: 14, marginBottom: 10 }}>{vaga.titulo}</T>
+      <View style={{ flexDirection: 'row', gap: 7, flexWrap: 'wrap' }}>
+        <Tag texto={vaga.modalidade} />
+        <Tag texto={vaga.contrato} />
+      </View>
+      <View style={[st.linha, { marginTop: 12, justifyContent: 'space-between' }]}>
+        <T style={{ color: C.ink2, fontFamily: F.interMed, fontSize: 14.5 }}>{faixaSalarial(vaga)}</T>
+        <View style={st.seta}>
+          <Icone nome="seta" tamanho={18} cor="#fff" />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+export function CartaoFreela({ servico }: { servico: Servico }) {
+  return (
+    <Pressable onPress={() => router.push(`/freela/${servico.id}`)} style={({ pressed }) => [st.freela, pressed && { opacity: 0.85 }]}>
+      <Avatar nome={servico.perfil?.nome ?? '?'} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T style={{ fontFamily: F.interSemi, fontSize: 15.5 }} numberOfLines={1}>
+          {servico.perfil?.nome}
+        </T>
+        <T style={{ color: C.muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+          {servico.titulo} · {servico.perfil?.cidade}, {servico.perfil?.uf}
+        </T>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <T style={{ color: C.orange2, fontFamily: F.interSemi, fontSize: 13.5 }}>R$ {dinheiro(servico.valor_hora)}</T>
+        <T style={{ color: C.muted, fontSize: 12 }}>/hora</T>
+      </View>
+    </Pressable>
+  );
+}
+
+const st = StyleSheet.create({
+  vaga: { backgroundColor: C.cream, borderRadius: 22, padding: 18 },
+  linha: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  seta: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' },
+  freela: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 20, backgroundColor: C.card, borderWidth: 1, borderColor: C.stroke },
+});
+
+export { Icone };

@@ -1,0 +1,212 @@
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
+import { Icone } from '@/components/icone';
+import { BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
+import { alternarSalvo, idsSalvos, listarServicos, listarVagas, minhasVagas, candidatosDaVaga, type Servico, type Vaga } from '@/lib/api';
+import { useSessao } from '@/lib/sessao';
+import { primeiroNome, tempoRelativo } from '@/lib/validacao';
+import { C, CATEGORIAS, F } from '@/theme';
+
+type Aviso = { texto: string; em: string; vaga: string };
+
+export default function Inicio() {
+  const { perfil } = useSessao();
+  const ins = useSafeAreaInsets();
+  const [area, setArea] = useState('Todas');
+  const [busca, setBusca] = useState('');
+  const [vagas, setVagas] = useState<Vaga[] | null>(null);
+  const [freelas, setFreelas] = useState<Servico[] | null>(null);
+  const [salvos, setSalvos] = useState<Set<string>>(new Set());
+  const [avisos, setAvisos] = useState<Aviso[]>([]);
+  const [verAvisos, setVerAvisos] = useState(false);
+  const [atualizando, setAtualizando] = useState(false);
+  const empresa = perfil?.tipo === 'empresa';
+
+  const carregar = useCallback(async () => {
+    if (!perfil) return;
+    try {
+      const [v, s] = await Promise.all([listarVagas({ area, limite: 6 }), listarServicos({ area, limite: 6 })]);
+      setVagas(v.filter((x) => x.empresa_id !== perfil.id));
+      setFreelas(s.filter((x) => x.freelancer_id !== perfil.id));
+      if (empresa) {
+        const minhas = await minhasVagas(perfil.id);
+        const cands = (await Promise.all(minhas.filter((m) => m.ativa).slice(0, 5).map(async (m) => (await candidatosDaVaga(m.id)).map((c) => ({ c, m }))))).flat();
+        setAvisos(
+          cands
+            .sort((a, b) => b.c.criado_em.localeCompare(a.c.criado_em))
+            .slice(0, 6)
+            .map(({ c, m }) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${m.titulo}`, em: c.criado_em, vaga: m.id }))
+        );
+      } else {
+        setSalvos(await idsSalvos(perfil.id));
+        setAvisos(
+          v
+            .filter((x) => x.area === perfil.area)
+            .slice(0, 4)
+            .map((x) => ({ texto: `Nova vaga em ${x.area}: ${x.titulo} — ${x.empresa?.nome}`, em: x.criado_em, vaga: x.id }))
+        );
+      }
+    } catch {
+      setVagas((x) => x ?? []);
+      setFreelas((x) => x ?? []);
+    }
+  }, [perfil, area, empresa]);
+
+  useFocusEffect(
+    useCallback(() => {
+      carregar();
+    }, [carregar])
+  );
+
+  async function salvar(id: string) {
+    if (!perfil) return;
+    const novo = !salvos.has(id);
+    setSalvos((s) => {
+      const n = new Set(s);
+      if (novo) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+    await alternarSalvo(perfil.id, id, novo).catch(() => {});
+  }
+
+  if (!perfil) return <Carregando />;
+
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: C.bg }}
+      contentContainerStyle={{ paddingBottom: 30 }}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl
+          tintColor={C.orange}
+          refreshing={atualizando}
+          onRefresh={async () => {
+            setAtualizando(true);
+            await carregar();
+            setAtualizando(false);
+          }}
+        />
+      }>
+      <View style={[st.hero, { paddingTop: ins.top + 16 }]}>
+        <Brilho variante="topo" />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <T style={{ fontFamily: F.soraSemi, fontSize: 23 }}>Olá, {empresa ? perfil.nome : primeiroNome(perfil.nome)}!</T>
+            <T style={{ fontSize: 16, color: '#E9DBD0', marginTop: 8, lineHeight: 22, maxWidth: 260 }}>
+              {empresa ? 'Que tal encontrar o talento certo para o seu projeto?' : 'Que tal encontrar uma nova oportunidade hoje?'}
+            </T>
+          </View>
+          <BotaoIcone nome="sino" rotulo="Notificações" onPress={() => setVerAvisos(true)} ponto={avisos.length > 0} />
+        </View>
+        <View style={st.busca}>
+          <Icone nome="buscar" cor={C.ink} />
+          <TextInput
+            value={busca}
+            onChangeText={setBusca}
+            placeholder="Buscar por área, serviço..."
+            placeholderTextColor="#8A7A70"
+            style={st.buscaInput}
+            returnKeyType="search"
+            onSubmitEditing={() => router.push({ pathname: '/buscar', params: { q: busca, seg: empresa ? 'freelas' : 'vagas' } })}
+          />
+        </View>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingTop: 16 }}>
+        {['Todas', ...CATEGORIAS].map((c) => (
+          <Chip key={c} texto={c} ativo={area === c} onPress={() => setArea(c)} />
+        ))}
+      </ScrollView>
+
+      <Pressable style={st.banner} onPress={() => (empresa ? router.navigate('/publicar') : router.push({ pathname: '/buscar', params: { seg: 'freelas' } }))}>
+        <View style={st.bannerBola} />
+        <View style={st.bannerIc}>
+          <Icone nome="brilho" cor={C.orange} tamanho={18} />
+        </View>
+        <T style={{ fontSize: 16.5, lineHeight: 23, fontFamily: F.interMed, maxWidth: 180 }}>
+          {empresa ? 'Publique uma vaga em minutos.' : 'Freelancers de alto nível, mais perto de você.'}
+        </T>
+        <View style={st.bannerSeta}>
+          <Icone nome="seta" cor={C.ink} tamanho={18} />
+        </View>
+      </Pressable>
+
+      {empresa ? (
+        <>
+          <Cabecalho titulo="Freelancers em destaque" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'freelas' } })} />
+          <View style={st.lista}>
+            {freelas === null ? <Carregando /> : freelas.length ? freelas.map((s) => <CartaoFreela key={s.id} servico={s} />) : <Vazio texto="Nenhum freelancer nessa categoria ainda." />}
+          </View>
+        </>
+      ) : (
+        <>
+          <Cabecalho titulo="Vagas em destaque" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas' } })} />
+          <View style={st.lista}>
+            {vagas === null ? (
+              <Carregando />
+            ) : vagas.length ? (
+              vagas.map((v) => <CartaoVaga key={v.id} vaga={v} salvo={salvos.has(v.id)} aoSalvar={() => salvar(v.id)} />)
+            ) : (
+              <Vazio texto="Nenhuma vaga nessa categoria ainda." />
+            )}
+          </View>
+        </>
+      )}
+
+      <Folha visivel={verAvisos} aoFechar={() => setVerAvisos(false)} titulo="Notificações">
+        {avisos.length ? (
+          avisos.map((a, i) => (
+            <Pressable
+              key={i}
+              style={st.aviso}
+              onPress={() => {
+                setVerAvisos(false);
+                router.push(`/vaga/${a.vaga}`);
+              }}>
+              <View style={st.avisoIc}>
+                <Icone nome={empresa ? 'pessoas' : 'brilho'} cor={C.orange} tamanho={17} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T style={{ fontSize: 14, lineHeight: 20 }}>{a.texto}</T>
+                <T style={{ fontSize: 12, color: C.muted2, marginTop: 2 }}>{tempoRelativo(a.em)}</T>
+              </View>
+            </Pressable>
+          ))
+        ) : (
+          <T style={{ color: C.muted }}>Nenhuma notificação por enquanto.</T>
+        )}
+      </Folha>
+    </ScrollView>
+  );
+}
+
+function Cabecalho({ titulo, onVer }: { titulo: string; onVer: () => void }) {
+  return (
+    <View style={st.cab}>
+      <T style={{ fontSize: 18, fontFamily: F.interMed }}>{titulo}</T>
+      <Pressable onPress={onVer} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <T style={{ fontSize: 13.5, color: '#E6D6CA' }}>Ver todas</T>
+        <Icone nome="seta" tamanho={16} cor="#E6D6CA" />
+      </Pressable>
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  hero: { paddingHorizontal: 20, paddingBottom: 6, overflow: 'hidden' },
+  busca: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, borderRadius: 28, backgroundColor: C.cream, paddingHorizontal: 18, marginTop: 20 },
+  buscaInput: { flex: 1, fontSize: 15, color: C.ink, fontFamily: F.inter, height: '100%' },
+  banner: { marginHorizontal: 20, marginTop: 16, borderRadius: 24, padding: 22, minHeight: 118, flexDirection: 'row', gap: 14, alignItems: 'center', backgroundColor: '#1F1613', borderWidth: 1, borderColor: '#3A2A24', overflow: 'hidden' },
+  bannerBola: { position: 'absolute', right: -50, bottom: -70, width: 220, height: 180, borderRadius: 110, backgroundColor: C.orange, transform: [{ rotate: '-25deg' }] },
+  bannerIc: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FF5A1222', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
+  bannerSeta: { position: 'absolute', right: 18, bottom: 18, width: 38, height: 38, borderRadius: 19, backgroundColor: C.cream, alignItems: 'center', justifyContent: 'center' },
+  cab: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 10 },
+  lista: { paddingHorizontal: 20, gap: 12 },
+  aviso: { flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.linha },
+  avisoIc: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FF5A1220', alignItems: 'center', justifyContent: 'center' },
+});

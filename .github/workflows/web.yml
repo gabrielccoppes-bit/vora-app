@@ -1,0 +1,32 @@
+# Publica a versão web do app no GitHub Pages (abre em qualquer celular pelo navegador).
+name: App Web (GitHub Pages)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Endereço do site (usuario.github.io/vora-app)
+        run: node -e "const f='app.json',j=require('./'+f);j.expo.experiments.baseUrl='/'+process.env.GITHUB_REPOSITORY.split('/')[1];require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+      - run: npx expo export --platform web --output-dir dist
+      - name: Rotas do app (SPA) no Pages
+        run: cp dist/index.html dist/404.html && touch dist/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+      - id: deploy
+        uses: actions/deploy-pages@v4
