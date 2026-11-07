@@ -10,8 +10,9 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     env:
-      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
-      EXPO_PUBLIC_SUPABASE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_KEY }}
+      # Valores públicos (a chave publishable é feita para ficar no app; a segurança vem do RLS)
+      EXPO_PUBLIC_SUPABASE_URL: https://atgtitircagbjuazrmth.supabase.co
+      EXPO_PUBLIC_SUPABASE_KEY: sb_publishable_c74HLVaf7jZ91WN928lb3A_JXq_iugX
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
