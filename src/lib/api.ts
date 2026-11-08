@@ -47,7 +47,7 @@ export type Vaga = {
   nivel: string;
   valor_min: number;
   valor_max: number | null;
-  periodo: 'mes' | 'projeto' | 'hora';
+  periodo: 'mes' | 'projeto' | 'hora' | 'diaria';
   duracao: string;
   descricao: string;
   requisitos: string[];
@@ -96,7 +96,7 @@ function ok<T = unknown>(r: { data: unknown; error: { message: string } | null }
 }
 const limparBusca = (q: string) => q.replace(/[,()%*\\]/g, ' ').trim();
 
-export const PER: Record<Vaga['periodo'], string> = { mes: '/mês', projeto: '/projeto', hora: '/hora' };
+export const PER: Record<Vaga['periodo'], string> = { mes: '/mês', projeto: '/projeto', hora: '/hora', diaria: '/diária' };
 export const faixaSalarial = (v: Pick<Vaga, 'valor_min' | 'valor_max' | 'periodo'>) => {
   const f = (n: number) => Number(n).toLocaleString('pt-BR');
   return v.valor_max ? `R$ ${f(v.valor_min)} – ${f(v.valor_max)}${PER[v.periodo]}` : `R$ ${f(v.valor_min)}${PER[v.periodo]}`;

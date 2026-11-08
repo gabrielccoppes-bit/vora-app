@@ -27,13 +27,20 @@ export const F = {
   interSemi: 'Inter_600SemiBold',
 };
 
-export const CATEGORIAS = ['Design', 'Marketing', 'TI', 'Dados', 'Redação', 'Audiovisual'];
-export const SETORES = [...CATEGORIAS, 'Varejo', 'Indústria', 'Saúde', 'Educação', 'Outro'];
+// Áreas de atuação (freelancers e vagas): primeiro as de bares, restaurantes e casas noturnas
+export const CATEGORIAS = [
+  'Atendimento', 'Bar', 'Cozinha', 'DJ e música', 'Segurança', 'Limpeza', 'Eventos',
+  'Design', 'Marketing', 'TI', 'Dados', 'Redação', 'Audiovisual',
+];
+// Tipos de negócio do contratante
+export const HOSPITALIDADE = ['Restaurante', 'Bar', 'Casa noturna', 'Eventos e buffet', 'Hotel e pousada', 'Cafeteria e padaria'];
+export const SETORES = [...HOSPITALIDADE, 'Tecnologia', 'Marketing e agência', 'Varejo', 'Indústria', 'Saúde', 'Educação', 'Outro'];
 export const UFS = 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
 export const MODALIDADES = ['Remoto', 'Híbrido', 'Presencial'];
 export const CONTRATOS = ['PJ', 'Freelance', 'CLT'];
 export const NIVEIS = ['Júnior', 'Pleno', 'Sênior', 'Especialista'];
-export const PERIODOS: { valor: 'mes' | 'projeto' | 'hora'; rotulo: string }[] = [
+export const PERIODOS: { valor: 'mes' | 'projeto' | 'hora' | 'diaria'; rotulo: string }[] = [
+  { valor: 'diaria', rotulo: 'Por diária/turno' },
   { valor: 'mes', rotulo: 'Por mês' },
   { valor: 'projeto', rotulo: 'Por projeto' },
   { valor: 'hora', rotulo: 'Por hora' },

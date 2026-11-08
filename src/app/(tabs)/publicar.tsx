@@ -6,7 +6,7 @@ import { Botao, Campo, Carregando, Escolha, T, Tela, Topo, useToast } from '@/co
 import { meuServico, publicarVaga, salvarServico, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { digitos, dinheiro } from '@/lib/validacao';
-import { C, CATEGORIAS, CONTRATOS, F, MODALIDADES, NIVEIS, PERIODOS } from '@/theme';
+import { C, CATEGORIAS, CONTRATOS, F, HOSPITALIDADE, MODALIDADES, NIVEIS, PERIODOS } from '@/theme';
 
 export default function Publicar() {
   const { perfil } = useSessao();
@@ -17,7 +17,12 @@ export default function Publicar() {
 function PublicarVaga() {
   const { perfil } = useSessao();
   const toast = useToast();
-  const vazio = { titulo: '', area: '', modalidade: 'Remoto', contrato: 'PJ', nivel: 'Pleno', periodo: 'mes', min: '', max: '', duracao: '', descricao: '', requisitos: '' };
+  // Bares, restaurantes e casas noturnas: padrão presencial, freelance e por diária
+  const casa = HOSPITALIDADE.includes(perfil?.titulo ?? '');
+  const vazio = {
+    titulo: '', area: '', modalidade: casa ? 'Presencial' : 'Remoto', contrato: casa ? 'Freelance' : 'PJ', nivel: 'Pleno',
+    periodo: casa ? 'diaria' : 'mes', min: '', max: '', duracao: '', descricao: '', requisitos: '',
+  };
   const [f, setF] = useState(vazio);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
@@ -71,7 +76,7 @@ function PublicarVaga() {
         <T style={{ color: C.muted, lineHeight: 21 }}>
           A vaga aparece com o nome <T style={{ color: C.cream, fontFamily: F.interSemi }}>{perfil?.nome}</T> e a cidade da sede ({perfil?.cidade}, {perfil?.uf}).
         </T>
-        <Campo rotulo="Título da vaga" valor={f.titulo} aoMudar={set('titulo')} placeholder="Ex.: Desenvolvedor(a) Front-End" erro={erros.titulo} />
+        <Campo rotulo="Título da vaga" valor={f.titulo} aoMudar={set('titulo')} placeholder={casa ? 'Ex.: Bartender para sexta e sábado' : 'Ex.: Desenvolvedor(a) Front-End'} erro={erros.titulo} />
         <Escolha rotulo="Categoria" valor={f.area} opcoes={CATEGORIAS} aoMudar={set('area')} erro={erros.area} />
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Escolha rotulo="Modalidade" valor={f.modalidade} opcoes={MODALIDADES} aoMudar={set('modalidade')} estilo={{ flex: 1 }} />
@@ -82,11 +87,11 @@ function PublicarVaga() {
           <Escolha rotulo="Pagamento" valor={f.periodo} opcoes={PERIODOS.map((p) => ({ valor: p.valor, rotulo: p.rotulo }))} aoMudar={set('periodo')} estilo={{ flex: 1 }} />
         </View>
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <Campo rotulo="Valor mínimo (R$)" valor={f.min} aoMudar={set('min')} mascara="dinheiro" keyboardType="number-pad" placeholder="6.000" erro={erros.min} estilo={{ flex: 1 }} />
+          <Campo rotulo="Valor mínimo (R$)" valor={f.min} aoMudar={set('min')} mascara="dinheiro" keyboardType="number-pad" placeholder={casa ? '180' : '6.000'} erro={erros.min} estilo={{ flex: 1 }} />
           <Campo rotulo="Valor máximo" valor={f.max} aoMudar={set('max')} mascara="dinheiro" keyboardType="number-pad" placeholder="opcional" erro={erros.max} estilo={{ flex: 1 }} />
         </View>
-        <Campo rotulo="Duração" valor={f.duracao} aoMudar={set('duracao')} placeholder="Ex.: Projeto de 3 meses" erro={erros.duracao} />
-        <Campo rotulo="Descrição" valor={f.descricao} aoMudar={set('descricao')} multiline placeholder="Conte sobre o projeto, entregas e como é trabalhar com vocês." erro={erros.descricao} maxLength={2000} />
+        <Campo rotulo="Duração" valor={f.duracao} aoMudar={set('duracao')} placeholder={casa ? 'Ex.: Sex e sáb, 20h às 4h' : 'Ex.: Projeto de 3 meses'} erro={erros.duracao} />
+        <Campo rotulo="Descrição" valor={f.descricao} aoMudar={set('descricao')} multiline placeholder={casa ? 'Conte sobre a casa, o público, uniforme, alimentação e transporte no fim do turno.' : 'Conte sobre o projeto, entregas e como é trabalhar com vocês.'} erro={erros.descricao} maxLength={2000} />
         <Campo rotulo="Requisitos (separe por vírgula)" valor={f.requisitos} aoMudar={set('requisitos')} placeholder="React, TypeScript, Git" />
         <Botao titulo="Publicar vaga" onPress={enviar} carregando={enviando} estilo={{ marginTop: 24 }} />
       </View>

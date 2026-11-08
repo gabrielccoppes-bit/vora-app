@@ -22,8 +22,8 @@ export default function Tipo() {
         />
         <Opcao
           icone="predio"
-          titulo="Sou empresa"
-          texto="Publique vagas e contrate talentos. Digite o CNPJ e preenchemos os dados da Receita."
+          titulo="Sou empresa ou estabelecimento"
+          texto="Restaurantes, bares, casas noturnas e empresas: publique vagas e contrate. Digite o CNPJ e preenchemos os dados da Receita."
           onPress={() => router.push('/cadastro-empresa')}
         />
       </View>

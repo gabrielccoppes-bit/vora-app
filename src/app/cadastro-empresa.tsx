@@ -66,7 +66,7 @@ export default function CadastroEmpresa() {
     if (!cnpjValido(cnpj)) e.cnpj = 'CNPJ inválido — confira os dígitos.';
     if (!f.razao.trim()) e.razao = 'Informe a razão social.';
     if (!f.fantasia.trim()) e.fantasia = 'Como a empresa aparece no app.';
-    if (!f.setor) e.setor = 'Escolha o setor.';
+    if (!f.setor) e.setor = 'Escolha o tipo de negócio.';
     if (f.respNome.trim().split(/\s+/).length < 2) e.respNome = 'Informe nome e sobrenome.';
     if (!cpfValido(f.respCpf)) e.respCpf = 'CPF inválido.';
     if (!f.respCargo.trim()) e.respCargo = 'Informe o cargo.';
@@ -120,11 +120,11 @@ export default function CadastroEmpresa() {
   const respCpfD = digitos(f.respCpf);
   return (
     <Tela rolar={false}>
-      <Topo titulo="Cadastro de empresa" />
+      <Topo titulo="Cadastro do contratante" />
       <ScrollView ref={rolagem} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
         <T style={{ color: C.muted, lineHeight: 21 }}>Digite o CNPJ e buscamos razão social e endereço na Receita Federal.</T>
 
-        <Secao titulo="Empresa" />
+        <Secao titulo="Empresa ou estabelecimento" />
         <Campo
           rotulo="CNPJ"
           valor={f.cnpj}
@@ -138,8 +138,8 @@ export default function CadastroEmpresa() {
           valido={dicaCnpj.tom === 'ok'}
         />
         <Campo rotulo="Razão social" valor={f.razao} aoMudar={set('razao')} placeholder="Preenchida pela consulta" erro={erros.razao} />
-        <Campo rotulo="Nome fantasia (aparece no app)" valor={f.fantasia} aoMudar={set('fantasia')} placeholder="Ex.: NovaTech" erro={erros.fantasia} />
-        <Escolha rotulo="Setor" valor={f.setor} opcoes={SETORES} aoMudar={set('setor')} erro={erros.setor} />
+        <Campo rotulo="Nome fantasia (aparece no app)" valor={f.fantasia} aoMudar={set('fantasia')} placeholder="Ex.: Bar do Zé, NovaTech" erro={erros.fantasia} />
+        <Escolha rotulo="Tipo de negócio" valor={f.setor} opcoes={SETORES} aoMudar={set('setor')} erro={erros.setor} />
 
         <EnderecoForm titulo="Endereço da sede" valor={end} aoMudar={setEnd} erros={erros} />
 

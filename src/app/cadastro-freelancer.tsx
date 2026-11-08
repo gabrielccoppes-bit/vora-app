@@ -40,7 +40,7 @@ export default function CadastroFreelancer() {
     if (!emailValido(f.email)) e.email = 'Informe um e-mail válido.';
     if (digitos(f.telefone).length < 10) e.telefone = 'Informe DDD + número.';
     if (!f.area) e.area = 'Escolha uma área.';
-    if (!f.titulo.trim()) e.titulo = 'Ex.: Product Designer, Dev Back-end...';
+    if (!f.titulo.trim()) e.titulo = 'Ex.: Bartender, Garçom, Designer...';
     if (f.mei && !cnpjValido(f.cnpj)) e.cnpj = 'CNPJ inválido.';
     Object.assign(e, validarEndereco(end), validarAcesso(acesso));
 
@@ -116,7 +116,7 @@ export default function CadastroFreelancer() {
 
         <Secao titulo="Atuação" />
         <Escolha rotulo="Área principal" valor={f.area} opcoes={CATEGORIAS} aoMudar={set('area')} erro={erros.area} />
-        <Campo rotulo="Título profissional" valor={f.titulo} aoMudar={set('titulo')} placeholder="Ex.: Product Designer" erro={erros.titulo} />
+        <Campo rotulo="Título profissional" valor={f.titulo} aoMudar={set('titulo')} placeholder="Ex.: Bartender, Garçom, Product Designer" erro={erros.titulo} />
         <Interruptor titulo="Tenho CNPJ (MEI ou empresa)" sub="Para emitir nota fiscal nos projetos" valor={f.mei} aoMudar={set('mei')} />
         {f.mei ? (
           <Campo
