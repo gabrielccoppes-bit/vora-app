@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
 import { BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
-import { alternarSalvo, idsSalvos, listarServicos, listarVagas, minhasVagas, candidatosDaVaga, type Servico, type Vaga } from '@/lib/api';
+import { alternarSalvo, idsSalvos, listarServicos, listarVagas, minhasVagas, candidatosDaVaga, urgentesNaCidade, type Servico, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { primeiroNome, tempoRelativo } from '@/lib/validacao';
 import { C, CATEGORIAS, F } from '@/theme';
@@ -19,6 +19,7 @@ export default function Inicio() {
   const [area, setArea] = useState('Todas');
   const [busca, setBusca] = useState('');
   const [vagas, setVagas] = useState<Vaga[] | null>(null);
+  const [urgentes, setUrgentes] = useState<Vaga[]>([]);
   const [freelas, setFreelas] = useState<Servico[] | null>(null);
   const [salvos, setSalvos] = useState<Set<string>>(new Set());
   const [avisos, setAvisos] = useState<Aviso[]>([]);
@@ -42,6 +43,7 @@ export default function Inicio() {
             .map(({ c, m }) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${m.titulo}`, em: c.criado_em, vaga: m.id }))
         );
       } else {
+        setUrgentes((await urgentesNaCidade(perfil.cidade)).filter((x) => area === 'Todas' || x.area === area));
         setSalvos(await idsSalvos(perfil.id));
         setAvisos(
           v
@@ -145,12 +147,22 @@ export default function Inicio() {
         </>
       ) : (
         <>
+          {urgentes.length ? (
+            <>
+              <Cabecalho titulo={`⚡ Urgentes em ${perfil.cidade}`} onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas', urgentes: '1' } })} />
+              <View style={st.lista}>
+                {urgentes.slice(0, 3).map((v) => (
+                  <CartaoVaga key={v.id} vaga={v} salvo={salvos.has(v.id)} aoSalvar={() => salvar(v.id)} />
+                ))}
+              </View>
+            </>
+          ) : null}
           <Cabecalho titulo="Vagas em destaque" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas' } })} />
           <View style={st.lista}>
             {vagas === null ? (
               <Carregando />
             ) : vagas.length ? (
-              vagas.map((v) => <CartaoVaga key={v.id} vaga={v} salvo={salvos.has(v.id)} aoSalvar={() => salvar(v.id)} />)
+              vagas.filter((v) => !urgentes.some((u) => u.id === v.id)).map((v) => <CartaoVaga key={v.id} vaga={v} salvo={salvos.has(v.id)} aoSalvar={() => salvar(v.id)} />)
             ) : (
               <Vazio texto="Nenhuma vaga nessa categoria ainda." />
             )}

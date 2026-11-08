@@ -17,6 +17,7 @@ export const fmtCPF = (v: string) => comSeparadores(digitos(v).slice(0, 11), { 3
 export const fmtCNPJ = (v: string) => comSeparadores(alfanum(v).slice(0, 14), { 2: '.', 5: '.', 8: '/', 12: '-' });
 export const fmtCEP = (v: string) => comSeparadores(digitos(v).slice(0, 8), { 5: '-' });
 export const fmtData = (v: string) => comSeparadores(digitos(v).slice(0, 8), { 2: '/', 4: '/' });
+export const fmtHora = (v: string) => comSeparadores(digitos(v).slice(0, 4), { 2: ':' });
 export function fmtTelefone(v: string) {
   const d = digitos(v).slice(0, 11);
   if (!d) return '';
@@ -36,6 +37,7 @@ export const MASCARAS = {
   cep: fmtCEP,
   telefone: fmtTelefone,
   data: fmtData,
+  hora: fmtHora,
   dinheiro: fmtDinheiro,
 };
 export type Mascara = keyof typeof MASCARAS;

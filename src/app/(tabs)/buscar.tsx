@@ -10,13 +10,13 @@ import { useSessao } from '@/lib/sessao';
 import { C, CATEGORIAS, CONTRATOS, F, MODALIDADES } from '@/theme';
 
 export default function Buscar() {
-  const p = useLocalSearchParams<{ q?: string; seg?: string }>();
+  const p = useLocalSearchParams<{ q?: string; seg?: string; urgentes?: string }>();
   const { perfil } = useSessao();
   const [q, setQ] = useState(p.q ?? '');
   const [termo, setTermo] = useState(p.q ?? '');
   const [seg, setSeg] = useState<'vagas' | 'freelas'>(p.seg === 'freelas' ? 'freelas' : 'vagas');
   const [area, setArea] = useState('Todas');
-  const [filt, setFilt] = useState({ modalidade: '', contrato: '' });
+  const [filt, setFilt] = useState({ modalidade: '', contrato: '', urgentes: p.urgentes === '1' });
   const [verFiltros, setVerFiltros] = useState(false);
   const [vagas, setVagas] = useState<Vaga[] | null>(null);
   const [freelas, setFreelas] = useState<Servico[] | null>(null);
@@ -29,7 +29,8 @@ export default function Buscar() {
       setTermo(p.q);
     }
     if (p.seg === 'vagas' || p.seg === 'freelas') setSeg(p.seg);
-  }, [p.q, p.seg]);
+    if (p.urgentes === '1') setFilt((f) => ({ ...f, urgentes: true }));
+  }, [p.q, p.seg, p.urgentes]);
 
   const carregar = useCallback(async () => {
     if (!perfil) return;
@@ -57,7 +58,7 @@ export default function Buscar() {
   );
 
   const lista = seg === 'vagas' ? vagas : freelas;
-  const nFiltros = (filt.modalidade ? 1 : 0) + (filt.contrato ? 1 : 0);
+  const nFiltros = (filt.modalidade ? 1 : 0) + (filt.contrato ? 1 : 0) + (filt.urgentes ? 1 : 0);
 
   return (
     <Tela rolar={false}>
@@ -140,6 +141,9 @@ export default function Buscar() {
       </ScrollView>
 
       <Folha visivel={verFiltros} aoFechar={() => setVerFiltros(false)} titulo="Filtros">
+        <View style={[st.chips, { marginTop: 6 }]}>
+          <Chip texto="⚡ Só urgentes (hoje/amanhã)" ativo={filt.urgentes} onPress={() => setFilt((f) => ({ ...f, urgentes: !f.urgentes }))} />
+        </View>
         <T style={{ color: C.muted, marginTop: 6, marginBottom: 8 }}>Modalidade</T>
         <View style={st.chips}>
           {MODALIDADES.map((m) => (
@@ -157,7 +161,7 @@ export default function Buscar() {
           titulo="Limpar filtros"
           variante="fantasma"
           onPress={() => {
-            setFilt({ modalidade: '', contrato: '' });
+            setFilt({ modalidade: '', contrato: '', urgentes: false });
             setVerFiltros(false);
           }}
         />

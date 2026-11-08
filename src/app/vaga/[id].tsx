@@ -2,6 +2,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 
+import { SeloUrgente } from '@/components/cartoes';
 import { Icone, type NomeIcone } from '@/components/icone';
 import { Avatar, BotaoIcone, Botao, Campo, Carregando, Folha, T, Tag, Tela, Topo, useToast, Vazio } from '@/components/ui';
 import {
@@ -15,7 +16,9 @@ import {
   faixaSalarial,
   idsSalvos,
   minhaCandidatura,
+  quandoComeca,
   totalCandidaturas,
+  urgenteAtiva,
   type Candidatura,
   type Vaga,
 } from '@/lib/api';
@@ -135,7 +138,12 @@ export default function DetalheVaga() {
         </View>
       </View>
 
-      <T style={st.titulo}>{vaga.titulo}</T>
+      {urgenteAtiva(vaga) ? (
+        <View style={{ paddingHorizontal: 22, marginTop: 6 }}>
+          <SeloUrgente inicio={vaga.inicio_em!} />
+        </View>
+      ) : null}
+      <T style={[st.titulo, urgenteAtiva(vaga) && { paddingTop: 12 }]}>{vaga.titulo}</T>
       <View style={{ flexDirection: 'row', gap: 7, paddingHorizontal: 22, flexWrap: 'wrap' }}>
         <Tag texto={vaga.modalidade} />
         <Tag texto={vaga.contrato} />
@@ -154,6 +162,7 @@ export default function DetalheVaga() {
 
       <View style={st.hr} />
       <View style={{ paddingHorizontal: 22 }}>
+        {vaga.urgente && vaga.inicio_em ? <Meta icone="raio" texto={`Começa ${quandoComeca(vaga.inicio_em)}`} /> : null}
         <Meta icone="relogio" texto={vaga.ativa ? `Publicada ${tempoRelativo(vaga.criado_em)}` : 'Vaga encerrada'} />
         <Meta icone="dinheiro" texto={faixaSalarial(vaga)} />
         <Meta icone="maleta" texto={vaga.duracao} />

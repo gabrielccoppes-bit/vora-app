@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { faixaSalarial, type Servico, type Vaga } from '@/lib/api';
+import { faixaSalarial, quandoComeca, urgenteAtiva, type Servico, type Vaga } from '@/lib/api';
 import { dinheiro, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
 import { Icone } from './icone';
@@ -22,7 +22,8 @@ export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: bool
         </View>
         {aoSalvar ? <BotaoIcone nome="salvar" cor={C.ink} preenchido={salvo} onPress={aoSalvar} rotulo={salvo ? 'Remover dos salvos' : 'Salvar vaga'} /> : null}
       </View>
-      <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 17, marginTop: 14, marginBottom: 10 }}>{vaga.titulo}</T>
+      {urgenteAtiva(vaga) ? <SeloUrgente inicio={vaga.inicio_em!} /> : null}
+      <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 17, marginTop: urgenteAtiva(vaga) ? 10 : 14, marginBottom: 10 }}>{vaga.titulo}</T>
       <View style={{ flexDirection: 'row', gap: 7, flexWrap: 'wrap' }}>
         <Tag texto={vaga.modalidade} />
         <Tag texto={vaga.contrato} />
@@ -34,6 +35,15 @@ export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: bool
         </View>
       </View>
     </Pressable>
+  );
+}
+
+export function SeloUrgente({ inicio }: { inicio: string }) {
+  return (
+    <View style={st.urgente}>
+      <Icone nome="raio" tamanho={14} cor="#fff" preenchido />
+      <T style={{ color: '#fff', fontFamily: F.interSemi, fontSize: 12, letterSpacing: 0.3 }}>URGENTE · {quandoComeca(inicio)}</T>
+    </View>
   );
 }
 
@@ -61,6 +71,7 @@ const st = StyleSheet.create({
   vaga: { backgroundColor: C.cream, borderRadius: 22, padding: 18 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   seta: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' },
+  urgente: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 14, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: C.orange },
   freela: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 20, backgroundColor: C.card, borderWidth: 1, borderColor: C.stroke },
 });
 

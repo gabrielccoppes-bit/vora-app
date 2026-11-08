@@ -52,6 +52,8 @@ export type Vaga = {
   descricao: string;
   requisitos: string[];
   ativa: boolean;
+  urgente: boolean;
+  inicio_em: string | null;
   criado_em: string;
   empresa: PerfilResumo;
 };
@@ -97,6 +99,24 @@ function ok<T = unknown>(r: { data: unknown; error: { message: string } | null }
 const limparBusca = (q: string) => q.replace(/[,()%*\\]/g, ' ').trim();
 
 export const PER: Record<Vaga['periodo'], string> = { mes: '/mês', projeto: '/projeto', hora: '/hora', diaria: '/diária' };
+/** Vaga urgente ainda válida (até 6h depois do início do turno) */
+export const urgenteAtiva = (v: Pick<Vaga, 'urgente' | 'inicio_em' | 'ativa'>) =>
+  v.ativa && v.urgente && !!v.inicio_em && new Date(v.inicio_em).getTime() > Date.now() - 6 * 3600e3;
+
+/** "hoje às 20:00", "amanhã às 22:30" ou "sáb, 15/11 às 20:00" */
+export function quandoComeca(iso: string) {
+  const d = new Date(iso);
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const hoje = new Date();
+  const amanha = new Date(Date.now() + 864e5);
+  const mesmoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (mesmoDia(d, hoje)) return `hoje às ${hora}`;
+  if (mesmoDia(d, amanha)) return `amanhã às ${hora}`;
+  return `${d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })} às ${hora}`;
+}
+
+const urgentesPrimeiro = (l: Vaga[]) => [...l].sort((a, b) => Number(urgenteAtiva(b)) - Number(urgenteAtiva(a)));
+
 export const faixaSalarial = (v: Pick<Vaga, 'valor_min' | 'valor_max' | 'periodo'>) => {
   const f = (n: number) => Number(n).toLocaleString('pt-BR');
   return v.valor_max ? `R$ ${f(v.valor_min)} – ${f(v.valor_max)}${PER[v.periodo]}` : `R$ ${f(v.valor_min)}${PER[v.periodo]}`;
@@ -169,14 +189,41 @@ export async function excluirMinhaConta() {
 /* ================= Vagas ================= */
 const VAGA_SEL = '*, empresa:perfis(id, nome, titulo, cidade, uf, verificado)';
 
-export async function listarVagas(f: { area?: string; q?: string; modalidade?: string; contrato?: string; limite?: number } = {}) {
+export async function listarVagas(f: { area?: string; q?: string; modalidade?: string; contrato?: string; urgentes?: boolean; limite?: number } = {}) {
   let q = supabase.from('vagas').select(VAGA_SEL).eq('ativa', true).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
   if (f.area && f.area !== 'Todas') q = q.eq('area', f.area);
   if (f.modalidade) q = q.eq('modalidade', f.modalidade);
   if (f.contrato) q = q.eq('contrato', f.contrato);
   const t = limparBusca(f.q ?? '');
   if (t) q = q.or(`titulo.ilike.%${t}%,descricao.ilike.%${t}%,area.ilike.%${t}%`);
-  return ok<Vaga[]>(await q);
+  if (f.urgentes) q = q.eq('urgente', true).gte('inicio_em', new Date(Date.now() - 6 * 3600e3).toISOString());
+  return urgentesPrimeiro(ok<Vaga[]>(await q));
+}
+/** Vagas urgentes ainda abertas numa cidade (para "Urgentes perto de você") */
+export async function urgentesNaCidade(cidade: string) {
+  const r = ok<Vaga[]>(
+    await supabase
+      .from('vagas')
+      .select(VAGA_SEL)
+      .eq('ativa', true)
+      .eq('urgente', true)
+      .gte('inicio_em', new Date(Date.now() - 6 * 3600e3).toISOString())
+      .order('inicio_em', { ascending: true })
+      .limit(20)
+  );
+  return r.filter((v) => v.empresa?.cidade?.toLowerCase() === cidade.toLowerCase());
+}
+/** Aviso em tempo real quando uma vaga urgente é publicada (app aberto) */
+export function ouvirVagasUrgentes(aoReceber: (vagaId: string) => void) {
+  const canal = supabase
+    .channel('vagas-urgentes')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vagas', filter: 'urgente=eq.true' }, (p) =>
+      aoReceber((p.new as { id: string }).id)
+    )
+    .subscribe();
+  return () => {
+    supabase.removeChannel(canal);
+  };
 }
 export async function minhasVagas(empresaId: string) {
   return ok<Vaga[]>(await supabase.from('vagas').select(VAGA_SEL).eq('empresa_id', empresaId).order('criado_em', { ascending: false }));
@@ -184,7 +231,7 @@ export async function minhasVagas(empresaId: string) {
 export async function buscarVaga(id: string) {
   return ok<Vaga | null>(await supabase.from('vagas').select(VAGA_SEL).eq('id', id).maybeSingle());
 }
-export async function publicarVaga(v: Omit<Vaga, 'id' | 'criado_em' | 'ativa' | 'empresa'>) {
+export async function publicarVaga(v: Omit<Vaga, 'id' | 'criado_em' | 'ativa' | 'empresa' | 'urgente' | 'inicio_em'> & { urgente?: boolean; inicio_em?: string | null }) {
   return ok<{ id: string }>(await supabase.from('vagas').insert(v).select('id').single());
 }
 export async function encerrarVaga(id: string) {

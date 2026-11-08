@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
-import { Botao, Campo, Carregando, Escolha, T, Tela, Topo, useToast } from '@/components/ui';
+import { Botao, Campo, Carregando, Chip, Escolha, Interruptor, T, Tela, Topo, useToast } from '@/components/ui';
 import { meuServico, publicarVaga, salvarServico, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { digitos, dinheiro } from '@/lib/validacao';
@@ -24,6 +24,9 @@ function PublicarVaga() {
     periodo: casa ? 'diaria' : 'mes', min: '', max: '', duracao: '', descricao: '', requisitos: '',
   };
   const [f, setF] = useState(vazio);
+  const [urgente, setUrgente] = useState(false);
+  const [dia, setDia] = useState<'hoje' | 'amanha'>('hoje');
+  const [hora, setHora] = useState('');
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
   const set = (k: keyof typeof f) => (v: string) => {
@@ -41,6 +44,18 @@ function PublicarVaga() {
     if (max && max < min) e.max = 'Deve ser maior que o mínimo.';
     if (!f.duracao.trim()) e.duracao = 'Ex.: Projeto de 2 meses.';
     if (f.descricao.trim().length < 30) e.descricao = 'Descreva com pelo menos 30 caracteres.';
+    let inicio: string | null = null;
+    if (urgente) {
+      const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hora);
+      if (!m) e.hora = 'Use o formato 20:00.';
+      else {
+        const d = new Date();
+        if (dia === 'amanha') d.setDate(d.getDate() + 1);
+        d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+        if (d.getTime() < Date.now() - 3600e3) e.hora = 'Esse horário já passou. Escolha "Amanhã" ou outro horário.';
+        else inicio = d.toISOString();
+      }
+    }
     setErros(e);
     if (Object.keys(e).length) return toast('Confira os campos destacados');
     setEnviando(true);
@@ -58,9 +73,13 @@ function PublicarVaga() {
         duracao: f.duracao.trim(),
         descricao: f.descricao.trim(),
         requisitos: f.requisitos.split(',').map((x) => x.trim()).filter(Boolean),
+        urgente,
+        inicio_em: inicio,
       });
       setF(vazio);
-      toast('Vaga publicada!');
+      setUrgente(false);
+      setHora('');
+      toast(urgente ? 'Vaga urgente publicada! Avisamos os freelancers da cidade.' : 'Vaga publicada!');
       router.push(`/vaga/${id}`);
     } catch (err) {
       toast((err as Error).message);
@@ -76,6 +95,32 @@ function PublicarVaga() {
         <T style={{ color: C.muted, lineHeight: 21 }}>
           A vaga aparece com o nome <T style={{ color: C.cream, fontFamily: F.interSemi }}>{perfil?.nome}</T> e a cidade da sede ({perfil?.cidade}, {perfil?.uf}).
         </T>
+        <Interruptor
+          titulo="⚡ Vaga urgente"
+          sub="Para hoje ou amanhã. Aparece no topo e os freelancers da cidade são avisados na hora."
+          valor={urgente}
+          aoMudar={setUrgente}
+        />
+        {urgente ? (
+          <View>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <Chip texto="Hoje" ativo={dia === 'hoje'} onPress={() => setDia('hoje')} />
+              <Chip texto="Amanhã" ativo={dia === 'amanha'} onPress={() => setDia('amanha')} />
+            </View>
+            <Campo
+              rotulo="Horário de início do turno"
+              valor={hora}
+              aoMudar={(v) => {
+                setHora(v);
+                if (erros.hora) setErros((x) => ({ ...x, hora: '' }));
+              }}
+              mascara="hora"
+              keyboardType="number-pad"
+              placeholder="20:00"
+              erro={erros.hora}
+            />
+          </View>
+        ) : null}
         <Campo rotulo="Título da vaga" valor={f.titulo} aoMudar={set('titulo')} placeholder={casa ? 'Ex.: Bartender para sexta e sábado' : 'Ex.: Desenvolvedor(a) Front-End'} erro={erros.titulo} />
         <Escolha rotulo="Categoria" valor={f.area} opcoes={CATEGORIAS} aoMudar={set('area')} erro={erros.area} />
         <View style={{ flexDirection: 'row', gap: 10 }}>
