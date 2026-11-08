@@ -5,6 +5,7 @@ import { ScrollView, View } from 'react-native';
 import { AcessoForm, acessoVazio, validarAcesso, type CamposAcesso } from '@/components/acesso';
 import { EnderecoForm, enderecoVazio, validarEndereco, type CamposEndereco } from '@/components/endereco';
 import { Botao, Campo, Escolha, Secao, T, Tela, Topo, useToast, type TomDica } from '@/components/ui';
+import { senhaVazada } from '@/lib/senha';
 import { cadastrar, consultarCNPJ, documentoDisponivel, geocodificar } from '@/lib/api';
 import { alfanum, cnpjValido, cpfValido, digitos, emailValido, fmtCEP } from '@/lib/validacao';
 import { C, SETORES, TERMOS_VERSAO } from '@/theme';
@@ -74,6 +75,7 @@ export default function CadastroEmpresa() {
     if (digitos(f.telefone).length < 10) e.telefone = 'Informe DDD + número.';
     Object.assign(e, validarEndereco(end), validarAcesso(acesso));
     if (!e.cnpj && !(await documentoDisponivel({ cnpj }))) e.cnpj = 'Este CNPJ já possui cadastro.';
+    if (!e.senha && (await senhaVazada(acesso.senha)) > 0) e.senha = 'Essa senha já apareceu em vazamentos de dados na internet. Escolha outra.';
 
     setErros(e);
     if (Object.keys(e).length) {

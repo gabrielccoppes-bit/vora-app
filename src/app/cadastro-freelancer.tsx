@@ -5,6 +5,7 @@ import { ScrollView, View } from 'react-native';
 import { AcessoForm, acessoVazio, validarAcesso, type CamposAcesso } from '@/components/acesso';
 import { EnderecoForm, enderecoVazio, validarEndereco, type CamposEndereco } from '@/components/endereco';
 import { Botao, Campo, Escolha, Interruptor, Secao, T, Tela, Topo, useToast, type TomDica } from '@/components/ui';
+import { senhaVazada } from '@/lib/senha';
 import { cadastrar, documentoDisponivel } from '@/lib/api';
 import { alfanum, cnpjValido, cpfValido, dataISO, digitos, emailValido, idade } from '@/lib/validacao';
 import { C, CATEGORIAS, TERMOS_VERSAO } from '@/theme';
@@ -45,6 +46,7 @@ export default function CadastroFreelancer() {
     Object.assign(e, validarEndereco(end), validarAcesso(acesso));
 
     if (!e.cpf && !(await documentoDisponivel({ cpf: digitos(f.cpf) }))) e.cpf = 'Este CPF já possui cadastro.';
+    if (!e.senha && (await senhaVazada(acesso.senha)) > 0) e.senha = 'Essa senha já apareceu em vazamentos de dados na internet. Escolha outra.';
 
     setErros(e);
     if (Object.keys(e).length) {
