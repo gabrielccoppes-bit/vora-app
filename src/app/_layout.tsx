@@ -50,6 +50,7 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="freela/[id]" />
           <Stack.Screen name="chat/[id]" />
           <Stack.Screen name="lista" />
+          <Stack.Screen name="avaliar" />
         </Stack.Protected>
         {/* Boas-vindas, login e cadastro */}
         <Stack.Protected guard={!sessao}>

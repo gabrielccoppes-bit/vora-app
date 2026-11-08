@@ -69,6 +69,12 @@ export default function Perfil() {
       </View>
 
       {empresa ? (
+        <>
+        <Grupo titulo="Avaliações">
+          <Item icone="estrela" onPress={() => router.push('/avaliar')} sub="Avalie quem trabalhou com você">
+            Avaliar freelancers
+          </Item>
+        </Grupo>
         <Grupo titulo="Minhas vagas">
           {vagas.length ? (
             vagas.map((v) => (
@@ -82,6 +88,7 @@ export default function Perfil() {
             </Item>
           )}
         </Grupo>
+        </>
       ) : (
         <Grupo titulo="Minha atividade">
           <Item icone="enviar" onPress={() => router.push({ pathname: '/lista', params: { tipo: 'candidaturas' } })}>
@@ -92,6 +99,12 @@ export default function Perfil() {
           </Item>
           <Item icone="editar" onPress={() => router.navigate('/publicar')}>
             Meu serviço
+          </Item>
+          <Item
+            icone="estrela"
+            onPress={() => router.push(`/freela/${perfil.id}`)}
+            sub={perfil.nota_total ? `★ ${Number(perfil.nota_media).toFixed(1).replace('.', ',')} · ${perfil.nota_total} ${perfil.nota_total === 1 ? 'avaliação' : 'avaliações'}` : 'Ainda sem avaliações'}>
+            Minhas avaliações
           </Item>
         </Grupo>
       )}

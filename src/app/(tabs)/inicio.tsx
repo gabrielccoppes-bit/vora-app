@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
 import { Botao, BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
-import { alternarSalvo, candidaturasRecebidas, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
+import { alternarSalvo, candidaturasRecebidas, contratadosDaEmpresa, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
 import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { primeiroNome, tempoRelativo } from '@/lib/validacao';
@@ -20,6 +20,7 @@ export default function Inicio() {
   const ins = useSafeAreaInsets();
   const [raio, setRaio] = useState(10);
   const [proximas, setProximas] = useState<Vaga[] | null>(null);
+  const [paraAvaliar, setParaAvaliar] = useState(0);
   const [area, setArea] = useState('Todas');
   const [busca, setBusca] = useState('');
   const [vagas, setVagas] = useState<Vaga[] | null>(null);
@@ -36,7 +37,8 @@ export default function Inicio() {
     try {
       // tudo em paralelo: a tela não espera uma consulta terminar para começar a próxima
       if (empresa) {
-        const [s, cands] = await Promise.all([listarServicos({ area, limite: 6 }), candidaturasRecebidas(perfil.id)]);
+        const [s, cands, contratados] = await Promise.all([listarServicos({ area, limite: 6 }), candidaturasRecebidas(perfil.id), contratadosDaEmpresa(perfil.id)]);
+        setParaAvaliar(contratados.filter((c) => !c.avaliacao).length);
         setFreelas(s.filter((x) => x.freelancer_id !== perfil.id));
         setVagas([]);
         setAvisos(cands.map((c) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${c.vaga.titulo}`, em: c.criado_em, vaga: c.vaga.id })));
@@ -154,6 +156,20 @@ export default function Inicio() {
 
       {empresa ? (
         <>
+          {paraAvaliar > 0 ? (
+            <Pressable style={st.ativarLoc} onPress={() => router.push('/avaliar')}>
+              <View style={st.ativarIc}>
+                <Icone nome="estrela" cor={C.orange} preenchido />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T style={{ fontFamily: F.interSemi, fontSize: 15 }}>
+                  {paraAvaliar === 1 ? '1 freelancer para avaliar' : `${paraAvaliar} freelancers para avaliar`}
+                </T>
+                <T style={{ color: C.muted, fontSize: 13, marginTop: 3, lineHeight: 18 }}>Sua avaliação ajuda outros estabelecimentos a contratar bem.</T>
+              </View>
+              <Icone nome="seta" tamanho={18} cor={C.muted} />
+            </Pressable>
+          ) : null}
           <Cabecalho titulo="Freelancers em destaque" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'freelas' } })} />
           <View style={st.lista}>
             {freelas === null ? <Carregando /> : freelas.length ? freelas.map((s) => <CartaoFreela key={s.id} servico={s} />) : <Vazio texto="Nenhum freelancer nessa categoria ainda." />}
