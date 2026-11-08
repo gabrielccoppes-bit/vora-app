@@ -225,8 +225,23 @@ export function ouvirVagasUrgentes(aoReceber: (vagaId: string) => void) {
     supabase.removeChannel(canal);
   };
 }
+/** Vagas da empresa já com o total de candidatos (1 consulta só) */
 export async function minhasVagas(empresaId: string) {
-  return ok<Vaga[]>(await supabase.from('vagas').select(VAGA_SEL).eq('empresa_id', empresaId).order('criado_em', { ascending: false }));
+  const r = ok<(Vaga & { candidaturas: { count: number }[] })[]>(
+    await supabase.from('vagas').select(`${VAGA_SEL}, candidaturas(count)`).eq('empresa_id', empresaId).order('criado_em', { ascending: false })
+  );
+  return r.map(({ candidaturas, ...v }) => ({ ...v, n: candidaturas?.[0]?.count ?? 0 }));
+}
+/** Últimas candidaturas recebidas nas vagas da empresa (1 consulta só) */
+export async function candidaturasRecebidas(empresaId: string, limite = 6) {
+  return ok<(Candidatura & { vaga: { id: string; titulo: string } })[]>(
+    await supabase
+      .from('candidaturas')
+      .select('*, freelancer:perfis!candidaturas_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado), vaga:vagas!inner(id, titulo, empresa_id)')
+      .eq('vaga.empresa_id', empresaId)
+      .order('criado_em', { ascending: false })
+      .limit(limite)
+  );
 }
 export async function buscarVaga(id: string) {
   return ok<Vaga | null>(await supabase.from('vagas').select(VAGA_SEL).eq('id', id).maybeSingle());

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, memo, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -30,7 +30,7 @@ export function T({ style, ...p }: React.ComponentProps<typeof Text>) {
 }
 
 /* ---------------- Fundo com brilho laranja (identidade Vora) ---------------- */
-export function Brilho({ variante = 'cantos' }: { variante?: 'cantos' | 'topo' }) {
+export const Brilho = memo(function Brilho({ variante = 'cantos' }: { variante?: 'cantos' | 'topo' }) {
   return (
     <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
       <Defs>
@@ -59,7 +59,7 @@ export function Brilho({ variante = 'cantos' }: { variante?: 'cantos' | 'topo' }
       )}
     </Svg>
   );
-}
+});
 
 /* ---------------- Tela com rolagem ---------------- */
 export function Tela({

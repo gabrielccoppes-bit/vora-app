@@ -36,12 +36,10 @@ export default function Buscar() {
     if (!perfil) return;
     try {
       if (seg === 'vagas') {
-        setVagas(null);
         const v = await listarVagas({ area, q: termo, ...filt });
         setVagas(v.filter((x) => x.empresa_id !== perfil.id));
         if (perfil.tipo === 'freelancer') setSalvos(await idsSalvos(perfil.id));
       } else {
-        setFreelas(null);
         const s = await listarServicos({ area, q: termo });
         setFreelas(s.filter((x) => x.freelancer_id !== perfil.id));
       }

@@ -50,12 +50,18 @@ export default function DetalheVaga() {
           const v = await buscarVaga(id);
           setVaga(v);
           if (!v) return;
-          setTotal(await totalCandidaturas(id));
-          if (v.empresa_id === perfil.id) setCandidatos(await candidatosDaVaga(id));
-          else if (perfil.tipo === 'freelancer') {
-            setMinha(await minhaCandidatura(id, perfil.id));
-            setSalva((await idsSalvos(perfil.id)).has(id));
-          }
+          const dono = v.empresa_id === perfil.id;
+          const freela = perfil.tipo === 'freelancer';
+          const [t, cands, minhaC, salvos] = await Promise.all([
+            totalCandidaturas(id),
+            dono ? candidatosDaVaga(id) : Promise.resolve([]),
+            freela ? minhaCandidatura(id, perfil.id) : Promise.resolve(null),
+            freela ? idsSalvos(perfil.id) : Promise.resolve(new Set<string>()),
+          ]);
+          setTotal(t);
+          setCandidatos(cands);
+          setMinha(minhaC);
+          setSalva(salvos.has(id));
         } catch {
           setVaga(null);
         }

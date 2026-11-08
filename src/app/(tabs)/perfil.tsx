@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { Icone, type NomeIcone } from '@/components/icone';
 import { Avatar, Botao, Carregando, Folha, T, Tela, Topo, useToast } from '@/components/ui';
-import { excluirMinhaConta, exportarMeusDados, meusDadosPrivados, minhasVagas, sair, totalCandidaturas, type DadosPrivados, type Vaga } from '@/lib/api';
+import { excluirMinhaConta, exportarMeusDados, meusDadosPrivados, minhasVagas, sair, type DadosPrivados, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { fmtCEP, fmtCNPJ, ocultarCPF, ocultarEmail, ocultarTelefone, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -25,7 +25,6 @@ export default function Perfil() {
       meusDadosPrivados(perfil.id).then(setDados).catch(() => {});
       if (perfil.tipo === 'empresa') {
         minhasVagas(perfil.id)
-          .then((vs) => Promise.all(vs.map(async (v) => ({ ...v, n: await totalCandidaturas(v.id).catch(() => 0) }))))
           .then(setVagas)
           .catch(() => {});
       }

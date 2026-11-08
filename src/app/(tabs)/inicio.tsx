@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
 import { BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
-import { alternarSalvo, idsSalvos, listarServicos, listarVagas, minhasVagas, candidatosDaVaga, urgentesNaCidade, type Servico, type Vaga } from '@/lib/api';
+import { alternarSalvo, candidaturasRecebidas, idsSalvos, listarServicos, listarVagas, urgentesNaCidade, type Servico, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { primeiroNome, tempoRelativo } from '@/lib/validacao';
 import { C, CATEGORIAS, F } from '@/theme';
@@ -30,21 +30,17 @@ export default function Inicio() {
   const carregar = useCallback(async () => {
     if (!perfil) return;
     try {
-      const [v, s] = await Promise.all([listarVagas({ area, limite: 6 }), listarServicos({ area, limite: 6 })]);
-      setVagas(v.filter((x) => x.empresa_id !== perfil.id));
-      setFreelas(s.filter((x) => x.freelancer_id !== perfil.id));
+      // tudo em paralelo: a tela não espera uma consulta terminar para começar a próxima
       if (empresa) {
-        const minhas = await minhasVagas(perfil.id);
-        const cands = (await Promise.all(minhas.filter((m) => m.ativa).slice(0, 5).map(async (m) => (await candidatosDaVaga(m.id)).map((c) => ({ c, m }))))).flat();
-        setAvisos(
-          cands
-            .sort((a, b) => b.c.criado_em.localeCompare(a.c.criado_em))
-            .slice(0, 6)
-            .map(({ c, m }) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${m.titulo}`, em: c.criado_em, vaga: m.id }))
-        );
+        const [s, cands] = await Promise.all([listarServicos({ area, limite: 6 }), candidaturasRecebidas(perfil.id)]);
+        setFreelas(s.filter((x) => x.freelancer_id !== perfil.id));
+        setVagas([]);
+        setAvisos(cands.map((c) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${c.vaga.titulo}`, em: c.criado_em, vaga: c.vaga.id })));
       } else {
-        setUrgentes((await urgentesNaCidade(perfil.cidade)).filter((x) => area === 'Todas' || x.area === area));
-        setSalvos(await idsSalvos(perfil.id));
+        const [v, urg, sv] = await Promise.all([listarVagas({ area, limite: 8 }), urgentesNaCidade(perfil.cidade), idsSalvos(perfil.id)]);
+        setVagas(v.filter((x) => x.empresa_id !== perfil.id));
+        setUrgentes(urg.filter((x) => area === 'Todas' || x.area === area));
+        setSalvos(sv);
         setAvisos(
           v
             .filter((x) => x.area === perfil.area)

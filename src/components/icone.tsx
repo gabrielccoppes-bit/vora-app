@@ -1,4 +1,5 @@
-import { SvgXml } from 'react-native-svg';
+import { memo } from 'react';
+import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 
 import { C } from '@/theme';
 
@@ -38,7 +39,22 @@ const P = {
 
 export type NomeIcone = keyof typeof P;
 
-export function Icone({
+/* Os desenhos são convertidos uma única vez (não a cada renderização). */
+type Elemento = { tag: 'path' | 'circle' | 'rect'; a: Record<string, string> };
+function converter(markup: string): Elemento[] {
+  const out: Elemento[] = [];
+  const re = /<(path|circle|rect)\s+([^>]*?)\/>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(markup))) {
+    const a: Record<string, string> = {};
+    m[2].replace(/([a-z-]+)="([^"]*)"/g, (_x, k: string, v: string) => ((a[k] = v), ''));
+    out.push({ tag: m[1] as Elemento['tag'], a });
+  }
+  return out;
+}
+const DESENHOS = Object.fromEntries(Object.entries(P).map(([k, v]) => [k, converter(v)])) as Record<NomeIcone, Elemento[]>;
+
+export const Icone = memo(function Icone({
   nome,
   tamanho = 22,
   cor = C.cream,
@@ -51,6 +67,19 @@ export function Icone({
   preenchido?: boolean;
   espessura?: number;
 }) {
-  const xml = `<svg viewBox="0 0 24 24" fill="${preenchido ? cor : 'none'}" stroke="${cor}" stroke-width="${espessura}" stroke-linecap="round" stroke-linejoin="round">${P[nome]}</svg>`;
-  return <SvgXml xml={xml} width={tamanho} height={tamanho} />;
-}
+  return (
+    <Svg width={tamanho} height={tamanho} viewBox="0 0 24 24">
+      <G fill={preenchido ? cor : 'none'} stroke={cor} strokeWidth={espessura} strokeLinecap="round" strokeLinejoin="round">
+        {DESENHOS[nome].map((e, i) =>
+          e.tag === 'path' ? (
+            <Path key={i} d={e.a.d} />
+          ) : e.tag === 'circle' ? (
+            <Circle key={i} cx={e.a.cx} cy={e.a.cy} r={e.a.r} />
+          ) : (
+            <Rect key={i} x={e.a.x} y={e.a.y} width={e.a.width} height={e.a.height} rx={e.a.rx} />
+          )
+        )}
+      </G>
+    </Svg>
+  );
+});

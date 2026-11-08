@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Tabs } from 'expo-router/js-tabs';
+import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,12 +18,7 @@ const ABAS: { nome: string; rotulo: string; icone: NomeIcone; cheio: boolean }[]
   { nome: 'perfil', rotulo: 'Perfil', icone: 'usuario', cheio: true },
 ];
 
-type BarraProps = {
-  state: { index: number; routes: { key: string; name: string; params?: object }[] };
-  navigation: { emit: (e: { type: 'tabPress'; target: string; canPreventDefault: true }) => { defaultPrevented: boolean }; navigate: (name: string, params?: object) => void };
-};
-
-function Barra({ state, navigation }: BarraProps) {
+function Barra({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const ins = useSafeAreaInsets();
   return (
     <View style={[st.barra, { paddingBottom: Math.max(ins.bottom, 10) }]}>
@@ -38,8 +33,8 @@ function Barra({ state, navigation }: BarraProps) {
             accessibilityRole="tab"
             accessibilityState={{ selected: ativo }}
             onPress={() => {
-              const ev = navigation.emit({ type: 'tabPress', target: rota.key, canPreventDefault: true });
-              if (!ativo && !ev.defaultPrevented) navigation.navigate(rota.name, rota.params);
+              const ev = emitter.emit({ type: 'tabPress', target: rota.key, canPreventDefault: true });
+              if (!ativo && !ev.defaultPrevented) navigateToTab(rota.key);
             }}
             style={st.aba}>
             <Icone nome={aba.icone} cor={cor} preenchido={ativo && aba.cheio} />
@@ -99,8 +94,8 @@ export default function LayoutAbas() {
   return (
     <View style={{ flex: 1 }}>
     <Tabs
-      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: C.bg } }}
-      tabBar={(p) => <Barra {...(p as unknown as BarraProps)} />}>
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: C.bg }, lazy: true, freezeOnBlur: true }}
+      tabBar={(p) => <Barra {...p} />}>
       {ABAS.map((a) => (
         <Tabs.Screen key={a.nome} name={a.nome} options={{ title: a.rotulo }} />
       ))}

@@ -1,5 +1,5 @@
 import type { Session } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { meuPerfil, type Perfil } from './api';
 import { supabase } from './supabase';
@@ -30,7 +30,8 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
         await supabase.auth.signOut();
         return;
       }
-      setPerfil(p);
+      // só atualiza se algo mudou (evita recarregar todas as telas a cada renovação do login)
+      setPerfil((atual) => (atual && JSON.stringify(atual) === JSON.stringify(p) ? atual : p));
     } catch {
       setPerfil(null);
     }
@@ -44,8 +45,9 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
       await carregarPerfil(data.session);
       setCarregando(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_evento, s) => {
-      setSessao(s);
+    const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
+      setSessao((atual) => (atual?.access_token === s?.access_token ? atual : s));
+      if (evento === 'TOKEN_REFRESHED' || evento === 'INITIAL_SESSION') return; // perfil não muda nesses eventos
       // fora do callback para não travar o cliente do Supabase
       setTimeout(() => carregarPerfil(s), 0);
     });
@@ -57,7 +59,8 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
 
   const recarregarPerfil = useCallback(() => carregarPerfil(sessao), [carregarPerfil, sessao]);
 
-  return <SessaoCtx.Provider value={{ sessao, perfil, carregando, recarregarPerfil }}>{children}</SessaoCtx.Provider>;
+  const valor = useMemo(() => ({ sessao, perfil, carregando, recarregarPerfil }), [sessao, perfil, carregando, recarregarPerfil]);
+  return <SessaoCtx.Provider value={valor}>{children}</SessaoCtx.Provider>;
 }
 
 export const useSessao = () => useContext(SessaoCtx);
