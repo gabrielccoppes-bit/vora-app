@@ -6,7 +6,7 @@ import { CartaoAvaliacao, Estrelas, NotaResumo } from '@/components/avaliacao';
 import { CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
 import { Avatar, Carregando, T, Tela, Topo, Vazio } from '@/components/ui';
-import { avaliacoesDoEstabelecimento, perfilPublico, vagasDoEstabelecimento, type Avaliacao, type Perfil, type Vaga } from '@/lib/api';
+import { avaliacoesDoEstabelecimento, perfilPublico, vagasDoEstabelecimento, type Avaliacao, type Perfil, type Vaga, fotoUrl } from '@/lib/api';
 import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { C, F } from '@/theme';
@@ -51,7 +51,7 @@ export default function Estabelecimento() {
     <Tela clara>
       <Topo clara titulo={meu ? 'Meu estabelecimento' : undefined} />
       <View style={{ alignItems: 'center', paddingHorizontal: 22 }}>
-        <Avatar nome={p.nome} tamanho={84} quadrado />
+        <Avatar nome={p.nome} tamanho={84} quadrado foto={fotoUrl(p)} />
         <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 22, marginTop: 14, textAlign: 'center' }}>{p.nome}</T>
         <T style={{ color: C.ink2, fontSize: 15, marginTop: 4 }}>{p.titulo ?? 'Estabelecimento'}</T>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>

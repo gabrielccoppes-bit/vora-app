@@ -1,3 +1,6 @@
+import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
+
 import { supabase } from './supabase';
 
 /* ================= Tipos ================= */
@@ -16,6 +19,7 @@ export type Perfil = {
   lng: number | null;
   nota_media: number | null; // média das avaliações (mantida pelo banco)
   nota_total: number;
+  foto_v: number | null; // versão da foto de perfil/logo (null = sem foto)
   criado_em: string;
 };
 
@@ -44,6 +48,7 @@ type PerfilResumo = Pick<Perfil, 'id' | 'nome' | 'titulo' | 'cidade' | 'uf' | 'v
   lng?: number | null;
   nota_media?: number | null;
   nota_total?: number;
+  foto_v?: number | null;
 };
 
 export type Vaga = {
@@ -106,7 +111,7 @@ export type Candidatura = {
   freelancer?: PerfilResumo;
   avaliacao?: Pick<Avaliacao, 'id' | 'nota' | 'tags' | 'comentario'> | null;
 };
-const FREELA_EMBED = 'freelancer:perfis!candidaturas_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total)';
+const FREELA_EMBED = 'freelancer:perfis!candidaturas_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v)';
 /** PostgREST devolve objeto (1:1) ou lista; normaliza para objeto */
 const umOuNada = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? (x[0] ?? null) : (x ?? null));
 
@@ -115,6 +120,7 @@ export type ConversaResumo = {
   outro_id: string;
   outro_nome: string;
   outro_tipo: TipoConta;
+  outro_foto_v: number | null;
   ultima_texto: string | null;
   ultima_autor: string | null;
   ultima_em: string;
@@ -201,7 +207,75 @@ export async function entrar(email: string, senha: string) {
 }
 export const sair = () => supabase.auth.signOut();
 
+/* ================= Senha ================= */
+/** Endereço para onde o link do e-mail de recuperação leva (site ou app). */
+function linkNovaSenha() {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    const base = window.location.pathname.startsWith('/vora-app') ? '/vora-app' : '';
+    return `${window.location.origin}${base}/nova-senha`;
+  }
+  return Linking.createURL('/nova-senha');
+}
+
+function erroDeSenha(msg: string) {
+  const m = msg.toLowerCase();
+  if (m.includes('rate limit') || m.includes('security purposes')) return 'Muitos pedidos em pouco tempo. Aguarde alguns minutos e tente de novo.';
+  if (m.includes('same') || m.includes('different from the old')) return 'A nova senha precisa ser diferente da atual.';
+  if (m.includes('weak') || m.includes('pwned')) return 'Essa senha é fraca ou já vazou. Escolha outra.';
+  if (m.includes('reauthentication') || m.includes('session')) return 'Sua sessão expirou. Peça um novo link.';
+  return 'Não foi possível concluir agora. Tente de novo.';
+}
+
+export async function pedirNovaSenha(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: linkNovaSenha() });
+  // e-mail inexistente não gera erro (não revelamos quem tem conta)
+  if (error) throw new Error(erroDeSenha(error.message));
+}
+
+export async function definirNovaSenha(senha: string) {
+  const { error } = await supabase.auth.updateUser({ password: senha });
+  if (error) throw new Error(erroDeSenha(error.message));
+}
+
+/** Confere a senha atual sem trocar de sessão (usado em "Alterar senha"). */
+export async function conferirSenhaAtual(email: string, senha: string) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+  if (error) throw new Error('Senha atual incorreta.');
+}
+
 /* ================= Perfil ================= */
+const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+/** Endereço público da foto (ou null). A versão evita mostrar a foto antiga do cache. */
+export function fotoUrl(p?: { id?: string; foto_v?: number | null } | null) {
+  return p?.id && p.foto_v ? `${SUPA_URL}/storage/v1/object/public/avatares/${p.id}/foto.jpg?v=${p.foto_v}` : null;
+}
+
+/** Envia a foto já recortada (JPEG) e grava a nova versão no perfil. */
+export async function enviarFoto(id: string, dados: ArrayBuffer) {
+  const { error } = await supabase.storage.from('avatares').upload(`${id}/foto.jpg`, dados, { contentType: 'image/jpeg', upsert: true, cacheControl: '31536000' });
+  if (error) throw new Error(error.message.includes('size') ? 'A foto é grande demais (máx. 5 MB).' : 'Não foi possível enviar a foto.');
+  ok(await supabase.from('perfis').update({ foto_v: Date.now() }).eq('id', id));
+}
+
+export async function removerFoto(id: string) {
+  await supabase.storage.from('avatares').remove([`${id}/foto.jpg`]);
+  ok(await supabase.from('perfis').update({ foto_v: null }).eq('id', id));
+}
+
+export type EdicaoPerfil = {
+  perfil: Partial<Pick<Perfil, 'nome' | 'titulo' | 'area' | 'cidade' | 'uf' | 'lat' | 'lng'>>;
+  privados: Partial<Pick<DadosPrivados, 'telefone' | 'cep' | 'logradouro' | 'numero' | 'complemento' | 'bairro' | 'responsavel_nome' | 'responsavel_cargo'>>;
+};
+
+export async function salvarPerfil(id: string, e: EdicaoPerfil) {
+  const [a, b] = await Promise.all([
+    supabase.from('perfis').update(e.perfil).eq('id', id),
+    supabase.from('dados_privados').update(e.privados).eq('id', id),
+  ]);
+  ok(a);
+  ok(b);
+}
+
 export async function meuPerfil(id: string) {
   return ok<Perfil | null>(await supabase.from('perfis').select('*').eq('id', id).maybeSingle());
 }
@@ -218,7 +292,7 @@ export async function excluirMinhaConta() {
 }
 
 /* ================= Vagas ================= */
-const VAGA_SEL = '*, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, lat, lng, nota_media, nota_total)';
+const VAGA_SEL = '*, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, lat, lng, nota_media, nota_total, foto_v)';
 
 export async function listarVagas(f: { area?: string; q?: string; modalidade?: string; contrato?: string; urgentes?: boolean; limite?: number } = {}) {
   let q = supabase.from('vagas').select(VAGA_SEL).eq('ativa', true).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
@@ -400,7 +474,7 @@ export async function minhasContratacoes(freelancerId: string) {
     await supabase
       .from('candidaturas')
       .select(
-        '*, vaga:vagas(id, titulo, empresa_id, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total)), avaliacao:avaliacoes(id, nota, tags, comentario)'
+        '*, vaga:vagas(id, titulo, empresa_id, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v)), avaliacao:avaliacoes(id, nota, tags, comentario)'
       )
       .eq('avaliacao.direcao', 'freela_para_empresa')
       .eq('freelancer_id', freelancerId)
@@ -434,7 +508,7 @@ export async function alternarSalvo(freelancerId: string, vagaId: string, salvar
 }
 
 /* ================= Serviços (perfil profissional) ================= */
-const SERV_SEL = '*, perfil:perfis!servicos_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total)';
+const SERV_SEL = '*, perfil:perfis!servicos_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v)';
 
 export async function listarServicos(f: { area?: string; q?: string; limite?: number } = {}) {
   let q = supabase.from('servicos').select(SERV_SEL).order('criado_em', { ascending: false }).limit(f.limite ?? 50);

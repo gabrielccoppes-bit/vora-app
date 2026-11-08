@@ -52,6 +52,7 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="lista" />
           <Stack.Screen name="avaliar" />
           <Stack.Screen name="estabelecimento/[id]" />
+          <Stack.Screen name="editar-perfil" />
         </Stack.Protected>
         {/* Boas-vindas, login e cadastro */}
         <Stack.Protected guard={!sessao}>
@@ -62,6 +63,8 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="cadastro-empresa" />
         </Stack.Protected>
         <Stack.Screen name="termos" options={{ presentation: 'modal' }} />
+        {/* Aberta pelo link do e-mail (com ou sem login) */}
+        <Stack.Screen name="nova-senha" options={{ animation: 'fade' }} />
       </Stack>
     </>
   );

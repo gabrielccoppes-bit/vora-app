@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Estrelas, FolhaAvaliar, NotaResumo, type AlvoAvaliacao } from '@/components/avaliacao';
 import { Icone } from '@/components/icone';
 import { Avatar, Carregando, T, Tela, Topo, Vazio } from '@/components/ui';
-import { contratadosDaEmpresa, minhasContratacoes, type Candidatura } from '@/lib/api';
+import { contratadosDaEmpresa, minhasContratacoes, type Candidatura, fotoUrl } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -21,6 +21,7 @@ type Item = {
   media?: number | null;
   total?: number;
   quadrado: boolean;
+  foto: string | null;
 };
 
 /** Aba de avaliações: o contratante avalia freelancers; o freelancer avalia estabelecimentos */
@@ -46,6 +47,7 @@ export default function Avaliar() {
             media: c.freelancer?.nota_media,
             total: c.freelancer?.nota_total,
             quadrado: false,
+            foto: fotoUrl(c.freelancer),
           }))
         );
       } else {
@@ -63,6 +65,7 @@ export default function Avaliar() {
               media: c.vaga.empresa?.nota_media,
               total: c.vaga.empresa?.nota_total,
               quadrado: true,
+              foto: fotoUrl(c.vaga.empresa),
             }))
         );
       }
@@ -141,7 +144,7 @@ function Linha({ i, onPress }: { i: Item; onPress: () => void }) {
   return (
     <View style={st.linha}>
       <Pressable style={{ flexDirection: 'row', gap: 12, alignItems: 'center', flex: 1 }} onPress={() => router.push(i.rota as never)}>
-        <Avatar nome={i.alvoNome} tamanho={46} quadrado={i.quadrado} />
+        <Avatar nome={i.alvoNome} tamanho={46} quadrado={i.quadrado} foto={i.foto} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={{ fontFamily: F.interSemi }} numberOfLines={1}>
             {i.alvoNome}

@@ -23,6 +23,7 @@ import {
   urgenteAtiva,
   type Candidatura,
   type Vaga,
+  fotoUrl,
 } from '@/lib/api';
 import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
@@ -157,7 +158,7 @@ export default function DetalheVaga() {
         }
       />
       <Pressable style={st.cab} onPress={() => router.push(`/estabelecimento/${vaga.empresa_id}`)}>
-        <Avatar nome={vaga.empresa?.nome ?? '?'} tamanho={66} quadrado />
+        <Avatar nome={vaga.empresa?.nome ?? '?'} tamanho={66} quadrado foto={fotoUrl(vaga.empresa)} />
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 19 }}>{vaga.empresa?.nome}</T>
@@ -224,7 +225,7 @@ export default function DetalheVaga() {
               candidatos.map((c) => (
                 <View key={c.id} style={[st.cand, c.status === 'recusado' && { opacity: 0.6 }]}>
                   <Pressable style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }} onPress={() => router.push(`/freela/${c.freelancer_id}`)}>
-                    <Avatar nome={c.freelancer?.nome ?? '?'} tamanho={42} />
+                    <Avatar nome={c.freelancer?.nome ?? '?'} tamanho={42} foto={fotoUrl(c.freelancer)} />
                     <View style={{ flex: 1 }}>
                       <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 14.5 }}>{c.freelancer?.nome}</T>
                       <T style={{ color: '#7A6A61', fontSize: 12.5, marginTop: 2 }}>

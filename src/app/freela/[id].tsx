@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { CartaoAvaliacao, Estrelas, NotaResumo } from '@/components/avaliacao';
 import { Icone, type NomeIcone } from '@/components/icone';
 import { Avatar, Botao, Carregando, T, Tag, Tela, Topo, Vazio } from '@/components/ui';
-import { abrirConversa, avaliacoesDoFreelancer, buscarServico, perfilPublico, type Avaliacao, type Perfil, type Servico } from '@/lib/api';
+import { abrirConversa, avaliacoesDoFreelancer, buscarServico, perfilPublico, type Avaliacao, type Perfil, type Servico, fotoUrl } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { dinheiro } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -56,7 +56,7 @@ export default function PerfilFreelancer() {
     <Tela clara>
       <Topo clara titulo={meu ? 'Meu perfil público' : undefined} />
       <View style={{ alignItems: 'center', paddingHorizontal: 22 }}>
-        <Avatar nome={p.nome} tamanho={84} />
+        <Avatar nome={p.nome} tamanho={84} foto={fotoUrl(p)} />
         <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 22, marginTop: 14 }}>{p.nome}</T>
         <T style={{ color: C.ink2, fontSize: 15, marginTop: 4 }}>{s?.titulo ?? p.titulo ?? 'Freelancer'}</T>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>

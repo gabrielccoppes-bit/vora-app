@@ -41,6 +41,14 @@
         {
           "locationWhenInUsePermission": "O Vora usa sua localização para mostrar vagas perto de você. Ela fica só no seu celular e não é salva."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Vora usa suas fotos para você escolher a foto de perfil ou o logo do estabelecimento.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {

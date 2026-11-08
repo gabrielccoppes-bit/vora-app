@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar, Carregando, T, Tela, Topo, Vazio } from '@/components/ui';
-import { minhasConversas, type ConversaResumo } from '@/lib/api';
+import { minhasConversas, type ConversaResumo, fotoUrl } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -32,7 +32,7 @@ export default function Conversas() {
           ListEmptyComponent={<Vazio icone="chat" texto="Nenhuma conversa ainda. Candidate-se a uma vaga ou envie uma mensagem para começar." />}
           renderItem={({ item: c }) => (
             <Pressable style={({ pressed }) => [st.linha, pressed && { backgroundColor: '#FFFFFF08' }]} onPress={() => router.push({ pathname: '/chat/[id]', params: { id: c.id, nome: c.outro_nome } })}>
-              <Avatar nome={c.outro_nome} quadrado={c.outro_tipo === 'empresa'} />
+              <Avatar nome={c.outro_nome} quadrado={c.outro_tipo === 'empresa'} foto={fotoUrl({ id: c.outro_id, foto_v: c.outro_foto_v })} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <T style={{ fontFamily: F.interSemi, fontSize: 15.5 }}>{c.outro_nome}</T>
                 <T style={{ color: C.muted, fontSize: 13.5, marginTop: 3 }} numberOfLines={1}>

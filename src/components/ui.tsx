@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { createContext, memo, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import {
@@ -378,7 +379,19 @@ export function Vazio({ texto, icone = 'buscar' }: { texto: string; icone?: Nome
   );
 }
 
-export function Avatar({ nome, tamanho = 52, quadrado }: { nome: string; tamanho?: number; quadrado?: boolean }) {
+export function Avatar({ nome, tamanho = 52, quadrado, foto }: { nome: string; tamanho?: number; quadrado?: boolean; foto?: string | null }) {
+  const raio = quadrado ? tamanho * 0.28 : tamanho / 2;
+  if (foto)
+    return (
+      <Image
+        source={{ uri: foto }}
+        style={{ width: tamanho, height: tamanho, borderRadius: raio, backgroundColor: C.card }}
+        contentFit="cover"
+        transition={150}
+        cachePolicy="memory-disk"
+        accessibilityLabel={`Foto de ${nome}`}
+      />
+    );
   const cores = ['#FF7B35', '#F7C6A3', '#FFB37A', '#E8DCCF', '#FF9A5C', '#F2A07B'];
   const cor = cores[[...String(nome)].reduce((a, c) => a + c.charCodeAt(0), 0) % cores.length];
   const ini = String(nome ?? '?')
@@ -393,7 +406,7 @@ export function Avatar({ nome, tamanho = 52, quadrado }: { nome: string; tamanho
       style={{
         width: tamanho,
         height: tamanho,
-        borderRadius: quadrado ? tamanho * 0.28 : tamanho / 2,
+        borderRadius: raio,
         backgroundColor: quadrado ? C.ink : cor,
         alignItems: 'center',
         justifyContent: 'center',

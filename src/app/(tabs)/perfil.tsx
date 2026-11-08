@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { Icone, type NomeIcone } from '@/components/icone';
 import { Avatar, Botao, Carregando, Folha, T, Tela, Topo, useToast } from '@/components/ui';
-import { excluirMinhaConta, exportarMeusDados, meusDadosPrivados, minhasVagas, sair, type DadosPrivados, type Vaga } from '@/lib/api';
+import { excluirMinhaConta, fotoUrl, exportarMeusDados, meusDadosPrivados, minhasVagas, sair, type DadosPrivados, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { fmtCEP, fmtCNPJ, ocultarCPF, ocultarEmail, ocultarTelefone, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -55,7 +55,7 @@ export default function Perfil() {
     <Tela>
       <Topo titulo="Perfil" voltar={false} />
       <View style={{ alignItems: 'center', paddingHorizontal: 20 }}>
-        <Avatar nome={perfil.nome} tamanho={84} quadrado={empresa} />
+        <Avatar nome={perfil.nome} tamanho={84} quadrado={empresa} foto={fotoUrl(perfil)} />
         <T style={{ fontFamily: F.soraSemi, fontSize: 21, marginTop: 12, textAlign: 'center' }}>{perfil.nome}</T>
         <T style={{ color: C.muted, marginTop: 4, textAlign: 'center' }}>
           {empresa ? dados?.razao_social ?? '' : perfil.titulo ?? 'Freelancer'} · {perfil.cidade}, {perfil.uf}
@@ -147,6 +147,15 @@ export default function Perfil() {
         ) : (
           <Carregando />
         )}
+      </Grupo>
+
+      <Grupo titulo="Conta">
+        <Item icone="editar" onPress={() => router.push('/editar-perfil')} sub={empresa ? 'Logo, nome, endereço e contato' : 'Foto, dados, endereço e contato'}>
+          Editar perfil
+        </Item>
+        <Item icone="cadeado" onPress={() => router.push({ pathname: '/editar-perfil', params: { secao: 'senha' } })}>
+          Alterar senha
+        </Item>
       </Grupo>
 
       <Grupo titulo="Privacidade (LGPD)">

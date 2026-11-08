@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { faixaSalarial, quandoComeca, urgenteAtiva, type Servico, type Vaga } from '@/lib/api';
+import { faixaSalarial, quandoComeca, urgenteAtiva, type Servico, type Vaga, fotoUrl } from '@/lib/api';
 import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { dinheiro, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -15,7 +15,7 @@ export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: bool
   return (
     <Pressable onPress={() => router.push(`/vaga/${vaga.id}`)} style={({ pressed }) => [st.vaga, pressed && { transform: [{ scale: 0.99 }] }]}>
       <View style={st.linha}>
-        <Avatar nome={vaga.empresa?.nome ?? '?'} tamanho={44} quadrado />
+        <Avatar nome={vaga.empresa?.nome ?? '?'} tamanho={44} quadrado foto={fotoUrl(vaga.empresa)} />
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <T style={{ color: C.ink, fontFamily: F.interSemi, flexShrink: 1 }} numberOfLines={1}>
@@ -57,7 +57,7 @@ export function SeloUrgente({ inicio }: { inicio: string }) {
 export function CartaoFreela({ servico }: { servico: Servico }) {
   return (
     <Pressable onPress={() => router.push(`/freela/${servico.id}`)} style={({ pressed }) => [st.freela, pressed && { opacity: 0.85 }]}>
-      <Avatar nome={servico.perfil?.nome ?? '?'} />
+      <Avatar nome={servico.perfil?.nome ?? '?'} foto={fotoUrl(servico.perfil)} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <T style={{ fontFamily: F.interSemi, fontSize: 15.5 }} numberOfLines={1}>
           {servico.perfil?.nome}
