@@ -132,6 +132,8 @@ export async function cadastrar(email: string, senha: string, dados: Record<stri
   const { data, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password: senha, options: { data: dados } });
   if (error) {
     const m = error.message.toLowerCase();
+    if (m.includes('rate limit') || error.status === 429)
+      throw new Error('Muitos cadastros em pouco tempo. Aguarde alguns minutos e tente de novo.');
     if (m.includes('already registered') || m.includes('already been registered')) throw new Error('Já existe uma conta com este e-mail.');
     if (m.includes('database error')) throw new Error('Não foi possível concluir o cadastro. Confira CPF/CNPJ e os demais dados.');
     if (m.includes('password')) throw new Error('A senha não atende aos requisitos de segurança.');
