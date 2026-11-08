@@ -161,10 +161,10 @@ export default function Inicio() {
           <View style={st.lista}>
             {vagas === null ? (
               <Carregando />
-            ) : vagas.length ? (
+            ) : vagas.some((v) => !urgentes.some((u) => u.id === v.id)) ? (
               vagas.filter((v) => !urgentes.some((u) => u.id === v.id)).map((v) => <CartaoVaga key={v.id} vaga={v} salvo={salvos.has(v.id)} aoSalvar={() => salvar(v.id)} />)
             ) : (
-              <Vazio texto="Nenhuma vaga nessa categoria ainda." />
+              <Vazio texto={urgentes.length ? 'Por enquanto, só as urgentes acima.' : 'Nenhuma vaga nessa categoria ainda.'} />
             )}
           </View>
         </>
