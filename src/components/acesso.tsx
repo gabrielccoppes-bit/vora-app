@@ -31,7 +31,7 @@ export function AcessoForm({ valor, aoMudar, erros }: { valor: CamposAcesso; aoM
           <T style={{ color: C.orange2, fontSize: 14 }} onPress={() => router.push('/termos')}>
             Termos de uso e a Política de privacidade
           </T>{' '}
-          da Vora, e autorizo o tratamento dos meus dados conforme a LGPD.
+          do Vora, e autorizo o tratamento dos meus dados conforme a LGPD.
         </T>
       </Marcar>
     </>

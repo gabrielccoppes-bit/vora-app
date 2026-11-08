@@ -147,7 +147,7 @@ export default function Perfil() {
       </Grupo>
 
       <Folha visivel={exportado !== null} aoFechar={() => setExportado(null)} titulo="Exportar meus dados">
-        <T style={{ color: C.muted, lineHeight: 20 }}>Direito de portabilidade (LGPD, art. 18). Estes são todos os dados que a Vora guarda sobre você.</T>
+        <T style={{ color: C.muted, lineHeight: 20 }}>Direito de portabilidade (LGPD, art. 18). Estes são todos os dados que o Vora guarda sobre você.</T>
         <ScrollView style={st.json} nestedScrollEnabled>
           <T style={{ fontSize: 11.5, lineHeight: 17, color: '#E2D2C6', fontFamily: F.inter }}>{exportado}</T>
         </ScrollView>

@@ -112,7 +112,7 @@ export default function DetalheVaga() {
               nome="compartilhar"
               cor={C.ink}
               rotulo="Compartilhar"
-              onPress={() => Share.share({ message: `${vaga.titulo} — ${vaga.empresa?.nome} (${vaga.modalidade}, ${faixaSalarial(vaga)}). Veja na Vora.` }).catch(() => {})}
+              onPress={() => Share.share({ message: `${vaga.titulo} — ${vaga.empresa?.nome} (${vaga.modalidade}, ${faixaSalarial(vaga)}). Veja no Vora.` }).catch(() => {})}
             />
             {!empresa ? <BotaoIcone nome="salvar" cor={C.ink} preenchido={salva} rotulo="Salvar vaga" onPress={alternarSalva} /> : null}
           </>

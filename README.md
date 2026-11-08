@@ -113,7 +113,7 @@ supabase/
 
 1. **Revisão jurídica:** o texto de `src/app/termos.tsx` é um modelo. Um advogado precisa revisar os termos e a política de privacidade, e vocês precisam nomear o encarregado de dados (DPO).
 2. **Verificação de identidade:** hoje o CPF é validado pelos dígitos. Para confirmar na Receita, contrate a API **Consulta CPF** do Serpro e crie uma função de servidor que marque `perfis.verificado = true`. Ela deve usar a chave de serviço, porque o app não pode alterar esse campo.
-3. **Pagamentos:** se a Vora intermediar pagamentos, use um intermediador (Asaas, Pagar.me, Mercado Pago, Stripe) com split e verificação de identidade (KYC). Assim vocês não guardam dados bancários.
+3. **Pagamentos:** se o Vora intermediar pagamentos, use um intermediador (Asaas, Pagar.me, Mercado Pago, Stripe) com split e verificação de identidade (KYC). Assim vocês não guardam dados bancários.
 4. **Proteção contra abuso:** limite de requisições nas funções de CEP/CNPJ e CAPTCHA no cadastro (o Supabase tem integração com hCaptcha/Turnstile).
 5. **Criptografia de colunas:** se quiserem uma camada extra além da criptografia em repouso do Supabase, usem o **Supabase Vault** para o CPF.
 6. **Notificações push** com `expo-notifications` para mensagens novas e candidaturas.

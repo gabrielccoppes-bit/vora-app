@@ -11,7 +11,7 @@ export default function Tipo() {
       <Topo />
       <View style={{ paddingHorizontal: 20 }}>
         <T style={{ fontFamily: F.soraSemi, fontSize: 26, lineHeight: 32 }}>
-          Como você quer usar a <T style={{ fontFamily: F.soraSemi, fontSize: 26, color: C.orange }}>Vora</T>?
+          Como você quer usar o <T style={{ fontFamily: F.soraSemi, fontSize: 26, color: C.orange }}>Vora</T>?
         </T>
         <T style={{ color: C.muted, marginTop: 8, marginBottom: 8, lineHeight: 21 }}>Você pode criar outra conta depois, se precisar dos dois perfis.</T>
         <Opcao
