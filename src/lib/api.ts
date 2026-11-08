@@ -216,7 +216,7 @@ export async function urgentesNaCidade(cidade: string) {
 /** Aviso em tempo real quando uma vaga urgente é publicada (app aberto) */
 export function ouvirVagasUrgentes(aoReceber: (vagaId: string) => void) {
   const canal = supabase
-    .channel('vagas-urgentes')
+    .channel(`vagas-urgentes-${Math.random().toString(36).slice(2)}`) // nome único: evita reaproveitar um canal que está sendo fechado
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vagas', filter: 'urgente=eq.true' }, (p) =>
       aoReceber((p.new as { id: string }).id)
     )
@@ -319,7 +319,7 @@ export async function enviarMensagem(conversaId: string, texto: string) {
 }
 export function ouvirMensagens(conversaId: string, aoReceber: (m: Mensagem) => void) {
   const canal = supabase
-    .channel(`conversa-${conversaId}`)
+    .channel(`conversa-${conversaId}-${Math.random().toString(36).slice(2)}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` }, (p) =>
       aoReceber(p.new as Mensagem)
     )

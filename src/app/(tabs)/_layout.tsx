@@ -58,16 +58,18 @@ function AlertaUrgente() {
   const [vaga, setVaga] = useState<Vaga | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const tipo = perfil?.tipo;
+  const cidade = perfil?.cidade ?? '';
   useEffect(() => {
-    if (perfil?.tipo !== 'freelancer') return;
+    if (tipo !== 'freelancer') return;
     return ouvirVagasUrgentes(async (id) => {
       const v = await buscarVaga(id).catch(() => null);
-      if (!v || v.empresa?.cidade?.toLowerCase() !== perfil.cidade.toLowerCase()) return;
+      if (!v || v.empresa?.cidade?.toLowerCase() !== cidade.toLowerCase()) return;
       setVaga(v);
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setVaga(null), 12000);
     });
-  }, [perfil]);
+  }, [tipo, cidade]);
 
   if (!vaga) return null;
   return (
