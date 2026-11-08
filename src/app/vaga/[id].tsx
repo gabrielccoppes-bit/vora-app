@@ -156,7 +156,7 @@ export default function DetalheVaga() {
           </>
         }
       />
-      <View style={st.cab}>
+      <Pressable style={st.cab} onPress={() => router.push(`/estabelecimento/${vaga.empresa_id}`)}>
         <Avatar nome={vaga.empresa?.nome ?? '?'} tamanho={66} quadrado />
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -170,8 +170,12 @@ export default function DetalheVaga() {
           <T style={{ color: C.ink2, fontSize: 13.5, marginTop: 4 }}>
             {vaga.empresa?.titulo} · {vaga.empresa?.cidade}, {vaga.empresa?.uf}
           </T>
+          <View style={{ marginTop: 4 }}>
+            <NotaResumo media={vaga.empresa?.nota_media} total={vaga.empresa?.nota_total} claro />
+          </View>
         </View>
-      </View>
+        <Icone nome="seta" tamanho={16} cor="#7A6A61" />
+      </Pressable>
 
       {urgenteAtiva(vaga) ? (
         <View style={{ paddingHorizontal: 22, marginTop: 6 }}>
@@ -258,7 +262,8 @@ export default function DetalheVaga() {
                               vaga_titulo: vaga.titulo,
                               empresa_id: vaga.empresa_id,
                               freelancer_id: c.freelancer_id,
-                              freelancer_nome: c.freelancer?.nome ?? 'freelancer',
+                              direcao: 'empresa_para_freela',
+                              alvo_nome: c.freelancer?.nome ?? 'freelancer',
                               existente: c.avaliacao,
                             })
                           }>
@@ -292,7 +297,26 @@ export default function DetalheVaga() {
       ) : (
         <View style={st.acoes}>
           {minha?.status === 'contratado' ? (
-            <Botao titulo="Você foi contratado(a)! 🎉" icone="check" variante="feito" desativado />
+            <>
+              <Botao titulo="Você foi contratado(a)! 🎉" icone="check" variante="feito" desativado />
+              <Botao
+                titulo={minha.avaliacao ? `Sua avaliação: ★ ${minha.avaliacao.nota} · Editar` : 'Avaliar este estabelecimento'}
+                icone="estrela"
+                variante="contornoEscuro"
+                onPress={() =>
+                  setAvaliar({
+                    direcao: 'freela_para_empresa',
+                    candidatura_id: minha.id,
+                    vaga_id: vaga.id,
+                    vaga_titulo: vaga.titulo,
+                    empresa_id: vaga.empresa_id,
+                    freelancer_id: perfil!.id,
+                    alvo_nome: vaga.empresa?.nome ?? 'estabelecimento',
+                    existente: minha.avaliacao,
+                  })
+                }
+              />
+            </>
           ) : minha?.status === 'recusado' ? (
             <Botao titulo="Candidatura não selecionada desta vez" variante="fantasma" desativado />
           ) : minha ? (
@@ -304,7 +328,14 @@ export default function DetalheVaga() {
         </View>
       )}
 
-      <FolhaAvaliar alvo={avaliar} aoFechar={() => setAvaliar(null)} aoSalvar={recarregarCandidatos} />
+      <FolhaAvaliar
+        alvo={avaliar}
+        aoFechar={() => setAvaliar(null)}
+        aoSalvar={async () => {
+          if (dono) await recarregarCandidatos();
+          else if (perfil && vaga) setMinha(await minhaCandidatura(vaga.id, perfil.id));
+        }}
+      />
 
       <Folha visivel={folha === 'candidatar'} aoFechar={() => setFolha(null)} titulo={`Candidatar-se a ${vaga.titulo}`}>
         <T style={{ color: C.muted, lineHeight: 20 }}>

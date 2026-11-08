@@ -17,9 +17,12 @@ export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: bool
       <View style={st.linha}>
         <Avatar nome={vaga.empresa?.nome ?? '?'} tamanho={44} quadrado />
         <View style={{ flex: 1 }}>
-          <T style={{ color: C.ink, fontFamily: F.interSemi }} numberOfLines={1}>
-            {vaga.empresa?.nome}
-          </T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <T style={{ color: C.ink, fontFamily: F.interSemi, flexShrink: 1 }} numberOfLines={1}>
+              {vaga.empresa?.nome}
+            </T>
+            {vaga.empresa?.nota_total ? <NotaResumo media={vaga.empresa.nota_media} total={vaga.empresa.nota_total} claro compacto /> : null}
+          </View>
           <T style={{ color: '#7A6A61', fontSize: 12.5 }} numberOfLines={1}>
             {tempoRelativo(vaga.criado_em)} · {km != null ? `${fmtDistancia(km)} · ${vaga.empresa?.cidade}` : `${vaga.empresa?.cidade}, ${vaga.empresa?.uf}`}
           </T>

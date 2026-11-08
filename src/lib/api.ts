@@ -80,7 +80,10 @@ export type Servico = {
 };
 
 export type StatusCandidatura = 'pendente' | 'contratado' | 'recusado';
+export type DirecaoAvaliacao = 'empresa_para_freela' | 'freela_para_empresa';
 export type Avaliacao = {
+  direcao: DirecaoAvaliacao;
+  freelancer?: { nome: string; titulo: string | null } | null;
   id: string;
   candidatura_id: string;
   vaga_id: string;
@@ -215,7 +218,7 @@ export async function excluirMinhaConta() {
 }
 
 /* ================= Vagas ================= */
-const VAGA_SEL = '*, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, lat, lng)';
+const VAGA_SEL = '*, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, lat, lng, nota_media, nota_total)';
 
 export async function listarVagas(f: { area?: string; q?: string; modalidade?: string; contrato?: string; urgentes?: boolean; limite?: number } = {}) {
   let q = supabase.from('vagas').select(VAGA_SEL).eq('ativa', true).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
@@ -304,15 +307,23 @@ export async function candidatar(vagaId: string, freelancerId: string, mensagem:
   ok(await supabase.from('candidaturas').insert({ vaga_id: vagaId, freelancer_id: freelancerId, mensagem: mensagem || null }));
 }
 export async function minhaCandidatura(vagaId: string, freelancerId: string) {
-  return ok<Candidatura | null>(
-    await supabase.from('candidaturas').select('*').eq('vaga_id', vagaId).eq('freelancer_id', freelancerId).maybeSingle()
+  const c = ok<Candidatura | null>(
+    await supabase
+      .from('candidaturas')
+      .select('*, avaliacao:avaliacoes(id, nota, tags, comentario)')
+      .eq('avaliacao.direcao', 'freela_para_empresa')
+      .eq('vaga_id', vagaId)
+      .eq('freelancer_id', freelancerId)
+      .maybeSingle()
   );
+  return c ? { ...c, avaliacao: umOuNada(c.avaliacao) } : null;
 }
 export async function candidatosDaVaga(vagaId: string) {
   return ok<Candidatura[]>(
     await supabase
       .from('candidaturas')
       .select(`*, ${FREELA_EMBED}, avaliacao:avaliacoes(id, nota, tags, comentario)`)
+      .eq('avaliacao.direcao', 'empresa_para_freela')
       .eq('vaga_id', vagaId)
       .order('criado_em', { ascending: false })
   ).map((c) => ({ ...c, avaliacao: umOuNada(c.avaliacao) }));
@@ -327,6 +338,7 @@ export async function contratadosDaEmpresa(empresaId: string) {
     await supabase
       .from('candidaturas')
       .select(`*, ${FREELA_EMBED}, vaga:vagas!inner(id, titulo, empresa_id), avaliacao:avaliacoes(id, nota, tags, comentario)`)
+      .eq('avaliacao.direcao', 'empresa_para_freela')
       .eq('vaga.empresa_id', empresaId)
       .eq('status', 'contratado')
       .order('criado_em', { ascending: false })
@@ -335,6 +347,7 @@ export async function contratadosDaEmpresa(empresaId: string) {
 /** Cria ou edita a avaliação de uma contratação */
 export async function salvarAvaliacao(a: {
   existenteId?: string;
+  direcao: DirecaoAvaliacao;
   candidatura_id: string;
   vaga_id: string;
   empresa_id: string;
@@ -349,7 +362,7 @@ export async function salvarAvaliacao(a: {
     ok(
       await supabase
         .from('avaliacoes')
-        .insert({ candidatura_id: a.candidatura_id, vaga_id: a.vaga_id, empresa_id: a.empresa_id, freelancer_id: a.freelancer_id, ...campos })
+        .insert({ candidatura_id: a.candidatura_id, vaga_id: a.vaga_id, empresa_id: a.empresa_id, freelancer_id: a.freelancer_id, direcao: a.direcao, ...campos })
     );
 }
 /** Avaliações públicas de um freelancer, com o estabelecimento que avaliou */
@@ -359,9 +372,41 @@ export async function avaliacoesDoFreelancer(freelancerId: string) {
       .from('avaliacoes')
       .select('*, empresa:perfis!avaliacoes_empresa_id_fkey(nome, titulo, cidade, uf), vaga:vagas(titulo)')
       .eq('freelancer_id', freelancerId)
+      .eq('direcao', 'empresa_para_freela')
       .order('criado_em', { ascending: false })
       .limit(50)
   );
+}
+/** Avaliações públicas de um estabelecimento, feitas pelos freelancers que trabalharam lá */
+export async function avaliacoesDoEstabelecimento(empresaId: string) {
+  return ok<Avaliacao[]>(
+    await supabase
+      .from('avaliacoes')
+      .select('*, freelancer:perfis!avaliacoes_freelancer_id_fkey(nome, titulo), vaga:vagas(titulo)')
+      .eq('empresa_id', empresaId)
+      .eq('direcao', 'freela_para_empresa')
+      .order('criado_em', { ascending: false })
+      .limit(50)
+  );
+}
+/** Vagas abertas de um estabelecimento */
+export async function vagasDoEstabelecimento(empresaId: string) {
+  return ok<Vaga[]>(await supabase.from('vagas').select(VAGA_SEL).eq('empresa_id', empresaId).eq('ativa', true).order('criado_em', { ascending: false }));
+}
+type VagaComEmpresa = { id: string; titulo: string; empresa_id: string; empresa: PerfilResumo };
+/** Trabalhos em que o freelancer foi contratado (para avaliar o estabelecimento) */
+export async function minhasContratacoes(freelancerId: string) {
+  return ok<(Candidatura & { vaga: VagaComEmpresa })[]>(
+    await supabase
+      .from('candidaturas')
+      .select(
+        '*, vaga:vagas(id, titulo, empresa_id, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total)), avaliacao:avaliacoes(id, nota, tags, comentario)'
+      )
+      .eq('avaliacao.direcao', 'freela_para_empresa')
+      .eq('freelancer_id', freelancerId)
+      .eq('status', 'contratado')
+      .order('criado_em', { ascending: false })
+  ).map((c) => ({ ...c, avaliacao: umOuNada(c.avaliacao) }));
 }
 /** Perfil público por id */
 export async function perfilPublico(id: string) {

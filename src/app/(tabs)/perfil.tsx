@@ -74,6 +74,12 @@ export default function Perfil() {
           <Item icone="estrela" onPress={() => router.push('/avaliar')} sub="Avalie quem trabalhou com você">
             Avaliar freelancers
           </Item>
+          <Item
+            icone="predio"
+            onPress={() => router.push(`/estabelecimento/${perfil.id}`)}
+            sub={perfil.nota_total ? `★ ${Number(perfil.nota_media).toFixed(1).replace('.', ',')} · ${perfil.nota_total} ${perfil.nota_total === 1 ? 'avaliação' : 'avaliações'} de freelancers` : 'Ainda sem avaliações de freelancers'}>
+            Avaliações do meu estabelecimento
+          </Item>
         </Grupo>
         <Grupo titulo="Minhas vagas">
           {vagas.length ? (
@@ -105,6 +111,9 @@ export default function Perfil() {
             onPress={() => router.push(`/freela/${perfil.id}`)}
             sub={perfil.nota_total ? `★ ${Number(perfil.nota_media).toFixed(1).replace('.', ',')} · ${perfil.nota_total} ${perfil.nota_total === 1 ? 'avaliação' : 'avaliações'}` : 'Ainda sem avaliações'}>
             Minhas avaliações
+          </Item>
+          <Item icone="predio" onPress={() => router.push('/avaliar')} sub="Conte como foi trabalhar em cada lugar">
+            Avaliar estabelecimentos
           </Item>
         </Grupo>
       )}

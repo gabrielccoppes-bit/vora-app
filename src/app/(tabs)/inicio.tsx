@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
 import { Botao, BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
-import { alternarSalvo, candidaturasRecebidas, contratadosDaEmpresa, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
+import { alternarSalvo, candidaturasRecebidas, contratadosDaEmpresa, minhasContratacoes, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
 import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { primeiroNome, tempoRelativo } from '@/lib/validacao';
@@ -43,12 +43,14 @@ export default function Inicio() {
         setVagas([]);
         setAvisos(cands.map((c) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${c.vaga.titulo}`, em: c.criado_em, vaga: c.vaga.id })));
       } else {
-        const [v, urg, sv, prox] = await Promise.all([
+        const [v, urg, sv, prox, contratacoes] = await Promise.all([
           listarVagas({ area, limite: 8 }),
           urgentesAbertas(),
           idsSalvos(perfil.id),
           ponto ? vagasProximas(ponto, raio, 12) : Promise.resolve(null),
+          minhasContratacoes(perfil.id).catch(() => []),
         ]);
+        setParaAvaliar(contratacoes.filter((c) => !c.avaliacao).length);
         const daArea = (x: Vaga) => area === 'Todas' || x.area === area;
         setVagas(v.filter((x) => x.empresa_id !== perfil.id));
         // urgentes: até 30 km de onde a pessoa está; sem localização, mesma cidade
@@ -177,6 +179,20 @@ export default function Inicio() {
         </>
       ) : (
         <>
+          {paraAvaliar > 0 ? (
+            <Pressable style={st.ativarLoc} onPress={() => router.push('/avaliar')}>
+              <View style={st.ativarIc}>
+                <Icone nome="estrela" cor={C.orange} preenchido />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T style={{ fontFamily: F.interSemi, fontSize: 15 }}>
+                  {paraAvaliar === 1 ? 'Avalie onde você trabalhou' : `${paraAvaliar} estabelecimentos para avaliar`}
+                </T>
+                <T style={{ color: C.muted, fontSize: 13, marginTop: 3, lineHeight: 18 }}>Sua opinião ajuda outros freelancers a escolher onde trabalhar.</T>
+              </View>
+              <Icone nome="seta" tamanho={18} cor={C.muted} />
+            </Pressable>
+          ) : null}
           {urgentes.length ? (
             <>
               <Cabecalho titulo={ponto ? '⚡ Urgentes perto de você' : `⚡ Urgentes em ${perfil.cidade}`} onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas', urgentes: '1' } })} />

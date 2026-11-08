@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { salvarAvaliacao } from '@/lib/api';
+import { salvarAvaliacao, type DirecaoAvaliacao } from '@/lib/api';
 import { tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
 import { Icone } from './icone';
 import { Botao, Campo, Chip, Folha, T, useToast } from './ui';
 
+/** Destaques do estabelecimento sobre o freelancer */
 export const DESTAQUES = ['Pontual', 'Profissional', 'Simpático(a)', 'Ágil', 'Trabalha bem em equipe', 'Voltaria a contratar'];
+/** Destaques do freelancer sobre o estabelecimento */
+export const DESTAQUES_ESTAB = ['Pagou em dia', 'Ambiente bom', 'Equipe acolhedora', 'Organizado', 'Respeitou o combinado', 'Trabalharia de novo'];
 
 /** ★★★★☆ */
 export function Estrelas({ nota, tamanho = 16, cor = C.orange }: { nota: number; tamanho?: number; cor?: string }) {
@@ -41,16 +44,26 @@ export function NotaResumo({ media, total, claro, compacto }: { media?: number |
 export function CartaoAvaliacao({
   a,
 }: {
-  a: { nota: number; tags: string[]; comentario: string | null; criado_em: string; empresa?: { nome: string; titulo: string | null; cidade: string } | null; vaga?: { titulo: string } | null };
+  a: {
+    nota: number;
+    tags: string[];
+    comentario: string | null;
+    criado_em: string;
+    direcao?: DirecaoAvaliacao;
+    empresa?: { nome: string; titulo: string | null; cidade: string } | null;
+    freelancer?: { nome: string; titulo: string | null } | null;
+    vaga?: { titulo: string } | null;
+  };
 }) {
+  const porFreela = a.direcao === 'freela_para_empresa';
+  const autor = porFreela ? a.freelancer?.nome?.split(' ')[0] ?? 'Freelancer' : a.empresa?.nome ?? 'Estabelecimento';
+  const sub = porFreela ? [a.freelancer?.titulo ?? 'Freelancer', tempoRelativo(a.criado_em)] : [a.empresa?.titulo, a.empresa?.cidade, tempoRelativo(a.criado_em)];
   return (
     <View style={st.cartao}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
-          <T style={{ color: C.ink, fontFamily: F.interSemi }}>{a.empresa?.nome ?? 'Estabelecimento'}</T>
-          <T style={{ color: '#7A6A61', fontSize: 12.5, marginTop: 2 }}>
-            {[a.empresa?.titulo, a.empresa?.cidade, tempoRelativo(a.criado_em)].filter(Boolean).join(' · ')}
-          </T>
+          <T style={{ color: C.ink, fontFamily: F.interSemi }}>{autor}</T>
+          <T style={{ color: '#7A6A61', fontSize: 12.5, marginTop: 2 }}>{sub.filter(Boolean).join(' · ')}</T>
         </View>
         <Estrelas nota={a.nota} tamanho={15} />
       </View>
@@ -70,16 +83,17 @@ export function CartaoAvaliacao({
 }
 
 export type AlvoAvaliacao = {
+  direcao: DirecaoAvaliacao;
   candidatura_id: string;
   vaga_id: string;
   vaga_titulo: string;
   empresa_id: string;
   freelancer_id: string;
-  freelancer_nome: string;
+  alvo_nome: string; // quem está sendo avaliado
   existente?: { id: string; nota: number; tags: string[]; comentario: string | null } | null;
 };
 
-/** Folha para avaliar (ou editar a avaliação de) um freelancer contratado */
+/** Folha para avaliar (ou editar): estabelecimento → freelancer ou freelancer → estabelecimento */
 export function FolhaAvaliar({ alvo, aoFechar, aoSalvar }: { alvo: AlvoAvaliacao | null; aoFechar: () => void; aoSalvar: () => void }) {
   const toast = useToast();
   const [nota, setNota] = useState(0);
@@ -110,10 +124,17 @@ export function FolhaAvaliar({ alvo, aoFechar, aoSalvar }: { alvo: AlvoAvaliacao
   }
 
   const rotulos = ['', 'Ruim', 'Regular', 'Bom', 'Muito bom', 'Excelente'];
+  const porFreela = alvo?.direcao === 'freela_para_empresa';
+  const opcoes = porFreela ? DESTAQUES_ESTAB : DESTAQUES;
   return (
-    <Folha visivel={!!alvo} aoFechar={aoFechar} titulo={alvo ? `Avaliar ${alvo.freelancer_nome}` : ''}>
+    <Folha visivel={!!alvo} aoFechar={aoFechar} titulo={alvo ? `Avaliar ${alvo.alvo_nome}` : ''}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-      <T style={{ color: C.muted, lineHeight: 20 }}>Trabalho: {alvo?.vaga_titulo}. Sua avaliação fica pública no perfil e ajuda outros estabelecimentos a contratar.</T>
+      <T style={{ color: C.muted, lineHeight: 20 }}>
+        Trabalho: {alvo?.vaga_titulo}.{' '}
+        {porFreela
+          ? 'Sua avaliação fica pública na página do estabelecimento e ajuda outros freelancers a escolher onde trabalhar.'
+          : 'Sua avaliação fica pública no perfil e ajuda outros estabelecimentos a contratar.'}
+      </T>
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 20 }}>
         {[1, 2, 3, 4, 5].map((i) => (
           <Pressable key={i} onPress={() => setNota(i)} hitSlop={6} accessibilityLabel={`${i} estrela${i > 1 ? 's' : ''}`}>
@@ -124,11 +145,11 @@ export function FolhaAvaliar({ alvo, aoFechar, aoSalvar }: { alvo: AlvoAvaliacao
       <T style={{ textAlign: 'center', marginTop: 8, color: nota ? C.orange2 : C.muted2, fontFamily: F.interSemi }}>{nota ? rotulos[nota] : 'Toque nas estrelas'}</T>
       <T style={{ color: C.muted, marginTop: 18, marginBottom: 8, fontSize: 13 }}>Destaques (opcional)</T>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {DESTAQUES.map((d) => (
+        {opcoes.map((d) => (
           <Chip key={d} texto={d} ativo={tags.includes(d)} onPress={() => setTags((t) => (t.includes(d) ? t.filter((x) => x !== d) : [...t, d]))} />
         ))}
       </View>
-      <Campo rotulo="Comentário (opcional)" valor={comentario} aoMudar={setComentario} multiline maxLength={600} placeholder="Como foi trabalhar com essa pessoa?" />
+      <Campo rotulo="Comentário (opcional)" valor={comentario} aoMudar={setComentario} multiline maxLength={600} placeholder={porFreela ? 'Como foi trabalhar nesse lugar?' : 'Como foi trabalhar com essa pessoa?'} />
       <Botao titulo={alvo?.existente ? 'Salvar alterações' : 'Enviar avaliação'} onPress={enviar} carregando={enviando} estilo={{ marginTop: 18 }} />
       <Botao titulo="Cancelar" variante="fantasma" onPress={aoFechar} />
       </ScrollView>
