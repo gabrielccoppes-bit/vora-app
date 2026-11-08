@@ -110,7 +110,7 @@ export default function CadastroFreelancer() {
 
         <Secao titulo="Contato" />
         <Campo rotulo="E-mail" valor={f.email} aoMudar={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" placeholder="voce@email.com" erro={erros.email} />
-        <Campo rotulo="Celular" valor={f.telefone} aoMudar={set('telefone')} mascara="telefone" keyboardType="phone-pad" placeholder="(11) 90000-0000" erro={erros.telefone} />
+        <Campo rotulo="Celular" valor={f.telefone} aoMudar={set('telefone')} mascara="telefone" keyboardType="phone-pad" placeholder="(51) 90000-0000" erro={erros.telefone} />
 
         <EnderecoForm valor={end} aoMudar={setEnd} erros={erros} />
 

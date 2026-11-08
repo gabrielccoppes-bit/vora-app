@@ -2,12 +2,15 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { faixaSalarial, quandoComeca, urgenteAtiva, type Servico, type Vaga } from '@/lib/api';
+import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { dinheiro, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
 import { Icone } from './icone';
 import { Avatar, BotaoIcone, T, Tag } from './ui';
 
 export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: boolean; aoSalvar?: () => void }) {
+  const { ponto } = useLocalizacao();
+  const km = distanciaAte(ponto, vaga.empresa);
   return (
     <Pressable onPress={() => router.push(`/vaga/${vaga.id}`)} style={({ pressed }) => [st.vaga, pressed && { transform: [{ scale: 0.99 }] }]}>
       <View style={st.linha}>
@@ -17,7 +20,7 @@ export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: bool
             {vaga.empresa?.nome}
           </T>
           <T style={{ color: '#7A6A61', fontSize: 12.5 }} numberOfLines={1}>
-            {tempoRelativo(vaga.criado_em)} · {vaga.empresa?.cidade}, {vaga.empresa?.uf}
+            {tempoRelativo(vaga.criado_em)} · {km != null ? `${fmtDistancia(km)} · ${vaga.empresa?.cidade}` : `${vaga.empresa?.cidade}, ${vaga.empresa?.uf}`}
           </T>
         </View>
         {aoSalvar ? <BotaoIcone nome="salvar" cor={C.ink} preenchido={salvo} onPress={aoSalvar} rotulo={salvo ? 'Remover dos salvos' : 'Salvar vaga'} /> : null}

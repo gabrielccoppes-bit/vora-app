@@ -12,6 +12,8 @@ export type Perfil = {
   cidade: string;
   uf: string;
   verificado: boolean;
+  lat: number | null; // ponto aproximado (só contratantes)
+  lng: number | null;
   criado_em: string;
 };
 
@@ -35,7 +37,7 @@ export type DadosPrivados = {
   termos_aceitos_em: string;
 };
 
-type PerfilResumo = Pick<Perfil, 'id' | 'nome' | 'titulo' | 'cidade' | 'uf' | 'verificado'>;
+type PerfilResumo = Pick<Perfil, 'id' | 'nome' | 'titulo' | 'cidade' | 'uf' | 'verificado'> & { lat?: number | null; lng?: number | null };
 
 export type Vaga = {
   id: string;
@@ -187,7 +189,7 @@ export async function excluirMinhaConta() {
 }
 
 /* ================= Vagas ================= */
-const VAGA_SEL = '*, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado)';
+const VAGA_SEL = '*, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, lat, lng)';
 
 export async function listarVagas(f: { area?: string; q?: string; modalidade?: string; contrato?: string; urgentes?: boolean; limite?: number } = {}) {
   let q = supabase.from('vagas').select(VAGA_SEL).eq('ativa', true).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
@@ -199,8 +201,8 @@ export async function listarVagas(f: { area?: string; q?: string; modalidade?: s
   if (f.urgentes) q = q.eq('urgente', true).gte('inicio_em', new Date(Date.now() - 6 * 3600e3).toISOString());
   return urgentesPrimeiro(ok<Vaga[]>(await q));
 }
-/** Vagas urgentes ainda abertas numa cidade (para "Urgentes perto de você") */
-export async function urgentesNaCidade(cidade: string) {
+/** Vagas urgentes ainda abertas (a tela filtra por distância ou cidade) */
+export async function urgentesAbertas() {
   const r = ok<Vaga[]>(
     await supabase
       .from('vagas')
@@ -209,9 +211,24 @@ export async function urgentesNaCidade(cidade: string) {
       .eq('urgente', true)
       .gte('inicio_em', new Date(Date.now() - 6 * 3600e3).toISOString())
       .order('inicio_em', { ascending: true })
-      .limit(20)
+      .limit(50)
   );
-  return r.filter((v) => v.empresa?.cidade?.toLowerCase() === cidade.toLowerCase());
+  return r;
+}
+/** Vagas num raio a partir do ponto do freelancer (o ponto não é gravado) */
+export async function vagasProximas(ponto: { lat: number; lng: number }, raioKm: number, limite = 20) {
+  const ids = ok<{ vaga_id: string; distancia_km: number }[]>(
+    await supabase.rpc('vagas_proximas', { p_lat: ponto.lat, p_lng: ponto.lng, p_raio_km: raioKm, p_limite: limite })
+  );
+  if (!ids.length) return [];
+  const vs = ok<Vaga[]>(await supabase.from('vagas').select(VAGA_SEL).in('id', ids.map((x) => x.vaga_id)));
+  const dist = new Map(ids.map((x) => [x.vaga_id, x.distancia_km]));
+  return vs.sort((a, b) => (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
+}
+/** Endereço do contratante → ponto no mapa */
+export async function geocodificar(e: { cep: string; logradouro: string; numero: string; cidade: string; uf: string }) {
+  const { data, error } = await supabase.functions.invoke('geocodificar', { body: e });
+  return error || typeof data?.lat !== 'number' ? null : (data as { lat: number; lng: number });
 }
 /** Aviso em tempo real quando uma vaga urgente é publicada (app aberto) */
 export function ouvirVagasUrgentes(aoReceber: (vagaId: string) => void) {

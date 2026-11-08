@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
-import { BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
-import { alternarSalvo, candidaturasRecebidas, idsSalvos, listarServicos, listarVagas, urgentesNaCidade, type Servico, type Vaga } from '@/lib/api';
+import { Botao, BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
+import { alternarSalvo, candidaturasRecebidas, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
+import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { primeiroNome, tempoRelativo } from '@/lib/validacao';
 import { C, CATEGORIAS, F } from '@/theme';
@@ -15,7 +16,10 @@ type Aviso = { texto: string; em: string; vaga: string };
 
 export default function Inicio() {
   const { perfil } = useSessao();
+  const { ponto, estado: estadoLoc, ativar } = useLocalizacao();
   const ins = useSafeAreaInsets();
+  const [raio, setRaio] = useState(10);
+  const [proximas, setProximas] = useState<Vaga[] | null>(null);
   const [area, setArea] = useState('Todas');
   const [busca, setBusca] = useState('');
   const [vagas, setVagas] = useState<Vaga[] | null>(null);
@@ -37,9 +41,23 @@ export default function Inicio() {
         setVagas([]);
         setAvisos(cands.map((c) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${c.vaga.titulo}`, em: c.criado_em, vaga: c.vaga.id })));
       } else {
-        const [v, urg, sv] = await Promise.all([listarVagas({ area, limite: 8 }), urgentesNaCidade(perfil.cidade), idsSalvos(perfil.id)]);
+        const [v, urg, sv, prox] = await Promise.all([
+          listarVagas({ area, limite: 8 }),
+          urgentesAbertas(),
+          idsSalvos(perfil.id),
+          ponto ? vagasProximas(ponto, raio, 12) : Promise.resolve(null),
+        ]);
+        const daArea = (x: Vaga) => area === 'Todas' || x.area === area;
         setVagas(v.filter((x) => x.empresa_id !== perfil.id));
-        setUrgentes(urg.filter((x) => area === 'Todas' || x.area === area));
+        // urgentes: até 30 km de onde a pessoa está; sem localização, mesma cidade
+        setUrgentes(
+          urg.filter((x) => {
+            if (!daArea(x)) return false;
+            const km = distanciaAte(ponto, x.empresa);
+            return km != null ? km <= 30 : x.empresa?.cidade?.toLowerCase() === perfil.cidade.toLowerCase();
+          })
+        );
+        setProximas(prox ? prox.filter(daArea) : null);
         setSalvos(sv);
         setAvisos(
           v
@@ -52,7 +70,7 @@ export default function Inicio() {
       setVagas((x) => x ?? []);
       setFreelas((x) => x ?? []);
     }
-  }, [perfil, area, empresa]);
+  }, [perfil, area, empresa, ponto, raio]);
 
   useFocusEffect(
     useCallback(() => {
@@ -145,7 +163,7 @@ export default function Inicio() {
         <>
           {urgentes.length ? (
             <>
-              <Cabecalho titulo={`⚡ Urgentes em ${perfil.cidade}`} onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas', urgentes: '1' } })} />
+              <Cabecalho titulo={ponto ? '⚡ Urgentes perto de você' : `⚡ Urgentes em ${perfil.cidade}`} onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas', urgentes: '1' } })} />
               <View style={st.lista}>
                 {urgentes.slice(0, 3).map((v) => (
                   <CartaoVaga key={v.id} vaga={v} salvo={salvos.has(v.id)} aoSalvar={() => salvar(v.id)} />
@@ -153,6 +171,45 @@ export default function Inicio() {
               </View>
             </>
           ) : null}
+          {ponto ? (
+            <>
+              <Cabecalho titulo="📍 Perto de você" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas', perto: '1' } })} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingBottom: 12 }}>
+                {[5, 10, 25, 50].map((km) => (
+                  <Chip key={km} texto={`até ${km} km`} ativo={raio === km} onPress={() => setRaio(km)} />
+                ))}
+              </ScrollView>
+              <View style={st.lista}>
+                {proximas === null ? (
+                  <Carregando />
+                ) : proximas.filter((v) => !urgentes.some((u) => u.id === v.id)).length ? (
+                  proximas
+                    .filter((v) => !urgentes.some((u) => u.id === v.id))
+                    .slice(0, 5)
+                    .map((v) => <CartaoVaga key={v.id} vaga={v} salvo={salvos.has(v.id)} aoSalvar={() => salvar(v.id)} />)
+                ) : (
+                  <Vazio icone="local" texto={`Nenhuma vaga em até ${raio} km agora. Tente aumentar o raio.`} />
+                )}
+              </View>
+            </>
+          ) : (
+            <View style={st.ativarLoc}>
+              <View style={st.ativarIc}>
+                <Icone nome="local" cor={C.orange} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T style={{ fontFamily: F.interSemi, fontSize: 15 }}>Vagas perto de você</T>
+                <T style={{ color: C.muted, fontSize: 13, marginTop: 3, lineHeight: 18 }}>
+                  {estadoLoc === 'negado'
+                    ? 'A localização está bloqueada. Libere nas configurações do celular para ver a distância das vagas.'
+                    : 'Use sua localização para ver as vagas mais próximas. Ela fica só no seu celular.'}
+                </T>
+                {estadoLoc !== 'negado' ? (
+                  <Botao titulo={estadoLoc === 'carregando' ? 'Localizando...' : 'Usar minha localização'} icone="local" carregando={estadoLoc === 'carregando'} onPress={ativar} estilo={{ height: 42, marginTop: 12 }} />
+                ) : null}
+              </View>
+            </View>
+          )}
           <Cabecalho titulo="Vagas em destaque" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas' } })} />
           <View style={st.lista}>
             {vagas === null ? (
@@ -215,6 +272,8 @@ const st = StyleSheet.create({
   bannerSeta: { position: 'absolute', right: 18, bottom: 18, width: 38, height: 38, borderRadius: 19, backgroundColor: C.cream, alignItems: 'center', justifyContent: 'center' },
   cab: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 10 },
   lista: { paddingHorizontal: 20, gap: 12 },
+  ativarLoc: { flexDirection: 'row', gap: 14, marginHorizontal: 20, marginTop: 22, padding: 16, borderRadius: 20, backgroundColor: C.card, borderWidth: 1, borderColor: C.stroke },
+  ativarIc: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FF5A1220', alignItems: 'center', justifyContent: 'center' },
   aviso: { flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.linha },
   avisoIc: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FF5A1220', alignItems: 'center', justifyContent: 'center' },
 });

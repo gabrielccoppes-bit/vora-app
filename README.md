@@ -33,7 +33,9 @@ Essas regras foram testadas num Postgres local antes da entrega.
 
 ## ✅ Já configurado para você
 
-O projeto Supabase **vora** (região São Paulo, ref `atgtitircagbjuazrmth`) já foi criado com:
+O projeto Supabase **vora** (servidor na região `sa-east-1`, o datacenter do Supabase no Brasil; ref `atgtitircagbjuazrmth`) já foi criado com:
+
+> A base de operação do Vora é **Porto Alegre/RS**: cadastros já vêm com UF RS e exemplos de DDD 51.
 - o banco completo, as regras de segurança e o endurecimento apontado pelo Security Advisor;
 - as funções `consulta-cep`, `consulta-cnpj` e `excluir-conta` publicadas;
 - o arquivo `.env` já preenchido com a URL e a chave pública.

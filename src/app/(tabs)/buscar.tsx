@@ -6,12 +6,15 @@ import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
 import { Botao, Carregando, Chip, Folha, T, Tela, Topo, Vazio } from '@/components/ui';
 import { alternarSalvo, idsSalvos, listarServicos, listarVagas, type Servico, type Vaga } from '@/lib/api';
+import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { C, CATEGORIAS, CONTRATOS, F, MODALIDADES } from '@/theme';
 
 export default function Buscar() {
-  const p = useLocalSearchParams<{ q?: string; seg?: string; urgentes?: string }>();
+  const p = useLocalSearchParams<{ q?: string; seg?: string; urgentes?: string; perto?: string }>();
   const { perfil } = useSessao();
+  const { ponto, ativar } = useLocalizacao();
+  const [perto, setPerto] = useState(p.perto === '1');
   const [q, setQ] = useState(p.q ?? '');
   const [termo, setTermo] = useState(p.q ?? '');
   const [seg, setSeg] = useState<'vagas' | 'freelas'>(p.seg === 'freelas' ? 'freelas' : 'vagas');
@@ -30,7 +33,8 @@ export default function Buscar() {
     }
     if (p.seg === 'vagas' || p.seg === 'freelas') setSeg(p.seg);
     if (p.urgentes === '1') setFilt((f) => ({ ...f, urgentes: true }));
-  }, [p.q, p.seg, p.urgentes]);
+    if (p.perto === '1') setPerto(true);
+  }, [p.q, p.seg, p.urgentes, p.perto]);
 
   const carregar = useCallback(async () => {
     if (!perfil) return;
@@ -94,6 +98,16 @@ export default function Buscar() {
 
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingVertical: 14 }}>
+          {seg === 'vagas' ? (
+            <Chip
+              texto="📍 Mais próximas"
+              ativo={perto && !!ponto}
+              onPress={async () => {
+                if (!ponto && !(await ativar())) return;
+                setPerto((x) => !x);
+              }}
+            />
+          ) : null}
           {['Todas', ...CATEGORIAS].map((c) => (
             <Chip key={c} texto={c} ativo={area === c} onPress={() => setArea(c)} />
           ))}
@@ -112,7 +126,10 @@ export default function Buscar() {
             </T>
             {lista.length === 0 ? <Vazio texto="Nada encontrado. Tente outro termo ou categoria." /> : null}
             {seg === 'vagas'
-              ? vagas!.map((v) => (
+              ? (perto && ponto
+                  ? [...vagas!].sort((a, b) => (distanciaAte(ponto, a.empresa) ?? 1e9) - (distanciaAte(ponto, b.empresa) ?? 1e9))
+                  : vagas!
+                ).map((v) => (
                   <CartaoVaga
                     key={v.id}
                     vaga={v}

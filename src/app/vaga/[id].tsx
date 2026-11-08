@@ -22,6 +22,7 @@ import {
   type Candidatura,
   type Vaga,
 } from '@/lib/api';
+import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -29,6 +30,7 @@ import { C, F } from '@/theme';
 export default function DetalheVaga() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { perfil } = useSessao();
+  const { ponto } = useLocalizacao();
   const toast = useToast();
   const [vaga, setVaga] = useState<Vaga | null | undefined>(undefined);
   const [total, setTotal] = useState(0);
@@ -170,6 +172,13 @@ export default function DetalheVaga() {
       <View style={{ paddingHorizontal: 22 }}>
         {vaga.urgente && vaga.inicio_em ? <Meta icone="raio" texto={`Começa ${quandoComeca(vaga.inicio_em)}`} /> : null}
         <Meta icone="relogio" texto={vaga.ativa ? `Publicada ${tempoRelativo(vaga.criado_em)}` : 'Vaga encerrada'} />
+        <Meta
+          icone="local"
+          texto={(() => {
+            const km = distanciaAte(ponto, vaga.empresa);
+            return km != null ? `${fmtDistancia(km).replace(/^a /, 'A ')} de você · ${vaga.empresa?.cidade}, ${vaga.empresa?.uf}` : `${vaga.empresa?.cidade}, ${vaga.empresa?.uf}`;
+          })()}
+        />
         <Meta icone="dinheiro" texto={faixaSalarial(vaga)} />
         <Meta icone="maleta" texto={vaga.duracao} />
         <Meta icone="pessoas" texto={`${total} candidatura${total === 1 ? '' : 's'}`} />

@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { ToastProvider } from '@/components/ui';
+import { LocalizacaoProvider } from '@/lib/localizacao';
 import { SessaoProvider, useSessao } from '@/lib/sessao';
 import { C } from '@/theme';
 
@@ -18,9 +19,11 @@ export default function Raiz() {
   return (
     <ThemeProvider value={tema}>
       <SessaoProvider>
-        <ToastProvider>
-          <Navegacao pronto={fontes} />
-        </ToastProvider>
+        <LocalizacaoProvider>
+          <ToastProvider>
+            <Navegacao pronto={fontes} />
+          </ToastProvider>
+        </LocalizacaoProvider>
       </SessaoProvider>
     </ThemeProvider>
   );

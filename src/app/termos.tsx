@@ -9,6 +9,7 @@ const SECOES: [string, string][] = [
   ['Quais dados coletamos', 'Nome, CPF ou CNPJ, data de nascimento (freelancers), e-mail, telefone e endereço. Para empresas, também os dados do responsável pela conta.'],
   ['Para que usamos', 'Verificar identidade, prevenir fraudes, viabilizar contratos e notas fiscais e conectar freelancers a oportunidades. Base legal: execução de contrato e legítimo interesse (LGPD, art. 7º).'],
   ['O que fica visível para outros usuários', 'Apenas nome, título profissional ou setor, cidade e UF. CPF, CNPJ, telefone, e-mail e endereço completo nunca aparecem em perfis públicos.'],
+  ['Localização', 'Contratantes: guardamos um ponto aproximado do estabelecimento (cerca de 100 m) para mostrar a distância aos freelancers. Freelancers: sua localização é usada só no seu aparelho para encontrar vagas próximas — não é gravada nos nossos servidores. Você pode desativar quando quiser nas configurações do celular.'],
   ['Compartilhamento', 'Ao se candidatar, a empresa vê seu perfil público e a mensagem que você escrever. Não vendemos dados pessoais.'],
   ['Seus direitos (LGPD, art. 18)', 'Você pode acessar, corrigir, exportar e excluir seus dados a qualquer momento em Perfil → Privacidade.'],
   ['Segurança', 'Os dados ficam em servidores com criptografia em repouso e acesso restrito por regras de segurança no banco: só você consegue ler seus documentos e endereço.'],

@@ -7,7 +7,8 @@ import { UFS } from '@/theme';
 import { Campo, Escolha, Secao, type TomDica } from './ui';
 
 export type CamposEndereco = { cep: string; logradouro: string; numero: string; complemento: string; bairro: string; cidade: string; uf: string };
-export const enderecoVazio: CamposEndereco = { cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '' };
+// Base do Vora: Porto Alegre/RS (o CEP corrige automaticamente se for outra cidade)
+export const enderecoVazio: CamposEndereco = { cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: 'RS' };
 
 export function validarEndereco(e: CamposEndereco) {
   const erros: Partial<Record<keyof CamposEndereco, string>> = {};
@@ -65,7 +66,7 @@ export function EnderecoForm({
   return (
     <View>
       <Secao titulo={titulo} />
-      <Campo rotulo="CEP" valor={valor.cep} aoMudar={mudarCep} mascara="cep" keyboardType="number-pad" placeholder="00000-000" erro={erros.cep} dica={d.texto} tomDica={d.tom} />
+      <Campo rotulo="CEP" valor={valor.cep} aoMudar={mudarCep} mascara="cep" keyboardType="number-pad" placeholder="90000-000" erro={erros.cep} dica={d.texto} tomDica={d.tom} />
       <Campo rotulo="Rua / Logradouro" valor={valor.logradouro} aoMudar={set('logradouro')} erro={erros.logradouro} />
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Campo rotulo="Número" valor={valor.numero} aoMudar={set('numero')} erro={erros.numero} estilo={{ width: 100 }} placeholder="123" />
@@ -73,7 +74,7 @@ export function EnderecoForm({
       </View>
       <Campo rotulo="Bairro" valor={valor.bairro} aoMudar={set('bairro')} erro={erros.bairro} />
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Campo rotulo="Cidade" valor={valor.cidade} aoMudar={set('cidade')} erro={erros.cidade} estilo={{ flex: 1 }} />
+        <Campo rotulo="Cidade" valor={valor.cidade} aoMudar={set('cidade')} erro={erros.cidade} estilo={{ flex: 1 }} placeholder="Ex.: Porto Alegre" />
         <Escolha rotulo="UF" valor={valor.uf} opcoes={UFS} aoMudar={set('uf')} erro={erros.uf} placeholder="—" estilo={{ width: 96 }} />
       </View>
     </View>

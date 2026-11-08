@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icone, type NomeIcone } from '@/components/icone';
 import { T } from '@/components/ui';
 import { buscarVaga, faixaSalarial, ouvirVagasUrgentes, quandoComeca, type Vaga } from '@/lib/api';
+import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { C } from '@/theme';
 
@@ -55,11 +56,17 @@ function AlertaUrgente() {
 
   const tipo = perfil?.tipo;
   const cidade = perfil?.cidade ?? '';
+  const { ponto } = useLocalizacao();
+  const pontoRef = useRef(ponto);
+  pontoRef.current = ponto; // lido na hora do aviso, sem refazer a inscrição
   useEffect(() => {
     if (tipo !== 'freelancer') return;
     return ouvirVagasUrgentes(async (id) => {
       const v = await buscarVaga(id).catch(() => null);
-      if (!v || v.empresa?.cidade?.toLowerCase() !== cidade.toLowerCase()) return;
+      if (!v) return;
+      const km = distanciaAte(pontoRef.current, v.empresa);
+      const perto = km != null ? km <= 30 : v.empresa?.cidade?.toLowerCase() === cidade.toLowerCase();
+      if (!perto) return;
       setVaga(v);
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setVaga(null), 12000);

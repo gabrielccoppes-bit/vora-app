@@ -5,7 +5,7 @@ import { ScrollView, View } from 'react-native';
 import { AcessoForm, acessoVazio, validarAcesso, type CamposAcesso } from '@/components/acesso';
 import { EnderecoForm, enderecoVazio, validarEndereco, type CamposEndereco } from '@/components/endereco';
 import { Botao, Campo, Escolha, Secao, T, Tela, Topo, useToast, type TomDica } from '@/components/ui';
-import { cadastrar, consultarCNPJ, documentoDisponivel } from '@/lib/api';
+import { cadastrar, consultarCNPJ, documentoDisponivel, geocodificar } from '@/lib/api';
 import { alfanum, cnpjValido, cpfValido, digitos, emailValido, fmtCEP } from '@/lib/validacao';
 import { C, SETORES, TERMOS_VERSAO } from '@/theme';
 
@@ -84,7 +84,11 @@ export default function CadastroEmpresa() {
 
     setEnviando(true);
     try {
+      // ponto aproximado do estabelecimento (para os freelancers verem a distância)
+      const geo = await geocodificar({ cep: digitos(end.cep), logradouro: end.logradouro, numero: end.numero, cidade: end.cidade, uf: end.uf }).catch(() => null);
       const { precisaConfirmarEmail } = await cadastrar(f.email, acesso.senha, {
+        lat: geo ? String(geo.lat) : '',
+        lng: geo ? String(geo.lng) : '',
         tipo: 'empresa',
         nome: f.fantasia.trim(),
         titulo: f.setor,
@@ -158,7 +162,7 @@ export default function CadastroEmpresa() {
         />
         <Campo rotulo="Cargo" valor={f.respCargo} aoMudar={set('respCargo')} placeholder="Ex.: Gerente de RH" erro={erros.respCargo} />
         <Campo rotulo="E-mail corporativo" valor={f.email} aoMudar={set('email')} keyboardType="email-address" autoCapitalize="none" placeholder="rh@empresa.com.br" erro={erros.email} />
-        <Campo rotulo="Telefone" valor={f.telefone} aoMudar={set('telefone')} mascara="telefone" keyboardType="phone-pad" placeholder="(11) 3000-0000" erro={erros.telefone} />
+        <Campo rotulo="Telefone" valor={f.telefone} aoMudar={set('telefone')} mascara="telefone" keyboardType="phone-pad" placeholder="(51) 3000-0000" erro={erros.telefone} />
 
         <AcessoForm valor={acesso} aoMudar={setAcesso} erros={erros} />
         <View style={{ marginTop: 24 }}>

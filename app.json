@@ -35,6 +35,12 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 180
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O Vora usa sua localização para mostrar vagas perto de você. Ela fica só no seu celular e não é salva."
+        }
       ]
     ],
     "experiments": {
