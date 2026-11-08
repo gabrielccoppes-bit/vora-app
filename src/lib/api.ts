@@ -187,7 +187,7 @@ export async function excluirMinhaConta() {
 }
 
 /* ================= Vagas ================= */
-const VAGA_SEL = '*, empresa:perfis(id, nome, titulo, cidade, uf, verificado)';
+const VAGA_SEL = '*, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado)';
 
 export async function listarVagas(f: { area?: string; q?: string; modalidade?: string; contrato?: string; urgentes?: boolean; limite?: number } = {}) {
   let q = supabase.from('vagas').select(VAGA_SEL).eq('ativa', true).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
@@ -254,7 +254,7 @@ export async function candidatosDaVaga(vagaId: string) {
   return ok<Candidatura[]>(
     await supabase
       .from('candidaturas')
-      .select('*, freelancer:perfis(id, nome, titulo, cidade, uf, verificado)')
+      .select('*, freelancer:perfis!candidaturas_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado)')
       .eq('vaga_id', vagaId)
       .order('criado_em', { ascending: false })
   );
@@ -281,7 +281,7 @@ export async function alternarSalvo(freelancerId: string, vagaId: string, salvar
 }
 
 /* ================= Serviços (perfil profissional) ================= */
-const SERV_SEL = '*, perfil:perfis(id, nome, titulo, cidade, uf, verificado)';
+const SERV_SEL = '*, perfil:perfis!servicos_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado)';
 
 export async function listarServicos(f: { area?: string; q?: string; limite?: number } = {}) {
   let q = supabase.from('servicos').select(SERV_SEL).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
