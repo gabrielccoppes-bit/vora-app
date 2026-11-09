@@ -1,9 +1,10 @@
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { Sora_400Regular, Sora_600SemiBold, useFonts } from '@expo-google-fonts/sora';
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { Botao, T, Tela, ToastProvider } from '@/components/ui';
 import { sair } from '@/lib/api';
@@ -36,6 +37,18 @@ function Navegacao({ pronto }: { pronto: boolean }) {
   useEffect(() => {
     if (pronto && !carregando) SplashScreen.hideAsync();
   }, [pronto, carregando]);
+
+  // notificações com o app fechado (APK): registra o aparelho depois do login
+  const uid = perfil?.id;
+  useEffect(() => {
+    if (Platform.OS === 'web' || !uid) return;
+    let parar: (() => void) | undefined;
+    import('@/lib/pushApp').then((m) => {
+      m.registrarPushApp(uid).catch(() => {});
+      parar = m.aoTocarNotificacao((rota) => router.push(rota as never));
+    });
+    return () => parar?.();
+  }, [uid]);
 
   if (!pronto || carregando) return null;
   if (perfil?.suspenso) return <ContaSuspensa />;

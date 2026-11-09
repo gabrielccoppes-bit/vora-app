@@ -1,4 +1,4 @@
-// Envia os avisos do Vora como notificação do navegador (Web Push).
+// Envia os avisos do Vora: navegador (Web Push) e app instalado (Expo Push).
 // Chamada pelo banco (gatilho em "notificacoes") e pelo app (para pegar a chave pública).
 // Não precisa de login: só envia avisos recém-criados e ainda não enviados.
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -55,11 +55,35 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!n) return json({ ok: true, enviados: 0 });
 
-    const { data: inscricoes } = await db.from('push_inscricoes').select('id, endpoint, p256dh, auth').eq('usuario_id', n.usuario_id).eq('tipo', 'web');
+    const { data: todas } = await db.from('push_inscricoes').select('id, tipo, endpoint, p256dh, auth').eq('usuario_id', n.usuario_id);
+    const inscricoes = (todas ?? []).filter((s) => s.tipo === 'web');
+    const aparelhos = (todas ?? []).filter((s) => s.tipo === 'expo');
+    let enviados = 0;
+
+    // App instalado (Android/iOS) via Expo Push
+    if (aparelhos.length) {
+      try {
+        const r = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(
+            aparelhos.map((a) => ({ to: a.endpoint, title: n.titulo, body: n.corpo, data: { rota: n.rota }, sound: 'default', channelId: 'avisos', priority: 'high' }))
+          ),
+        });
+        const resp = (await r.json()) as { data?: { status: string; details?: { error?: string } }[] };
+        for (const [i, t] of (resp.data ?? []).entries()) {
+          if (t.status === 'ok') enviados++;
+          else if (t.details?.error === 'DeviceNotRegistered') await db.from('push_inscricoes').delete().eq('id', aparelhos[i].id);
+          else console.error('expo push', JSON.stringify(t));
+        }
+      } catch (e) {
+        console.error('expo push falhou', (e as Error).message);
+      }
+    }
+
     webpush.setVapidDetails('mailto:contato@vora.app', k.publica, k.privada);
     const carga = JSON.stringify({ titulo: n.titulo, corpo: n.corpo, rota: n.rota, tipo: n.tipo });
-    let enviados = 0;
-    for (const s of inscricoes ?? []) {
+    for (const s of inscricoes) {
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, carga, { TTL: 3600, urgency: 'high' });
         enviados++;

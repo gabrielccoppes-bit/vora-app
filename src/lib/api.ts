@@ -218,7 +218,13 @@ export async function entrar(email: string, senha: string) {
     throw new Error('E-mail ou senha incorretos.');
   }
 }
-export const sair = () => supabase.auth.signOut();
+export async function sair() {
+  if (Platform.OS !== 'web') {
+    const { esquecerAparelho } = await import('./pushApp');
+    await esquecerAparelho().catch(() => {});
+  }
+  await supabase.auth.signOut();
+}
 
 /* ================= Senha ================= */
 /** Endereço para onde o link do e-mail de recuperação leva (site ou app). */

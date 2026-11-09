@@ -49,6 +49,13 @@
           "cameraPermission": "O Vora usa a câmera para a selfie e a foto do documento na verificação de identidade.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FF5A12",
+          "defaultChannel": "avisos"
+        }
       ]
     ],
     "experiments": {
