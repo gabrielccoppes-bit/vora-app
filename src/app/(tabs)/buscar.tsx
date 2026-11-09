@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
 import { Botao, Carregando, Chip, Folha, T, Tela, Topo, Vazio } from '@/components/ui';
-import { alternarSalvo, idsSalvos, listarServicos, listarVagas, type Servico, type Vaga } from '@/lib/api';
+import { alternarSalvo, disponiveisEm, idsBloqueados, idsFavoritos, idsSalvos, listarServicos, listarVagas, turnoAtual, type Servico, type Vaga } from '@/lib/api';
 import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { C, CATEGORIAS, CONTRATOS, F, MODALIDADES } from '@/theme';
@@ -24,6 +24,8 @@ export default function Buscar() {
   const [vagas, setVagas] = useState<Vaga[] | null>(null);
   const [freelas, setFreelas] = useState<Servico[] | null>(null);
   const [salvos, setSalvos] = useState<Set<string>>(new Set());
+  const [livres, setLivres] = useState<'' | 'hoje' | 'agora'>('');
+  const [soFavoritos, setSoFavoritos] = useState(false);
 
   // parâmetros vindos da tela inicial
   useEffect(() => {
@@ -39,19 +41,29 @@ export default function Buscar() {
   const carregar = useCallback(async () => {
     if (!perfil) return;
     try {
+      const bloq = await idsBloqueados(perfil.id).catch(() => new Set<string>());
       if (seg === 'vagas') {
         const v = await listarVagas({ area, q: termo, ...filt });
-        setVagas(v.filter((x) => x.empresa_id !== perfil.id));
+        setVagas(v.filter((x) => x.empresa_id !== perfil.id && !bloq.has(x.empresa_id)));
         if (perfil.tipo === 'freelancer') setSalvos(await idsSalvos(perfil.id));
       } else {
-        const s = await listarServicos({ area, q: termo });
-        setFreelas(s.filter((x) => x.freelancer_id !== perfil.id));
+        const agora = turnoAtual();
+        const [s, livresIds, favs] = await Promise.all([
+          listarServicos({ area, q: termo, limite: livres || soFavoritos ? 200 : 50 }),
+          livres ? disponiveisEm(agora.dia, livres === 'agora' ? agora.turno : undefined) : Promise.resolve(null),
+          soFavoritos ? idsFavoritos(perfil.id) : Promise.resolve(null),
+        ]);
+        setFreelas(
+          s.filter(
+            (x) => x.freelancer_id !== perfil.id && !bloq.has(x.freelancer_id) && (!livresIds || livresIds.has(x.freelancer_id)) && (!favs || favs.has(x.freelancer_id))
+          )
+        );
       }
     } catch {
       setVagas([]);
       setFreelas([]);
     }
-  }, [perfil, seg, area, termo, filt]);
+  }, [perfil, seg, area, termo, filt, livres, soFavoritos]);
 
   useFocusEffect(
     useCallback(() => {
@@ -107,6 +119,13 @@ export default function Buscar() {
                 setPerto((x) => !x);
               }}
             />
+          ) : null}
+          {seg === 'freelas' ? (
+            <>
+              <Chip texto="🗓 Livres hoje" ativo={livres === 'hoje'} onPress={() => setLivres((x) => (x === 'hoje' ? '' : 'hoje'))} />
+              <Chip texto="⏱ Livres agora" ativo={livres === 'agora'} onPress={() => setLivres((x) => (x === 'agora' ? '' : 'agora'))} />
+              {perfil?.tipo === 'empresa' ? <Chip texto="★ Favoritos" ativo={soFavoritos} onPress={() => setSoFavoritos((x) => !x)} /> : null}
+            </>
           ) : null}
           {['Todas', ...CATEGORIAS].map((c) => (
             <Chip key={c} texto={c} ativo={area === c} onPress={() => setArea(c)} />

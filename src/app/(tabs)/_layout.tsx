@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icone, type NomeIcone } from '@/components/icone';
 import { T } from '@/components/ui';
-import { buscarVaga, faixaSalarial, ouvirVagasUrgentes, quandoComeca, type Vaga } from '@/lib/api';
+import { buscarVaga, faixaSalarial, ouvirConvites, ouvirVagasUrgentes, quandoComeca } from '@/lib/api';
 import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { C } from '@/theme';
@@ -47,50 +47,78 @@ function Barra({ state, emitter, navigateToTab }: BottomTabBarProps) {
   );
 }
 
-/** Aviso no topo quando uma vaga urgente é publicada na cidade do freelancer */
+type Aviso = { rotulo: string; titulo: string; linha: string; rota: string; icone: NomeIcone };
+
+/** Avisos no topo: vaga urgente perto do freelancer e convites diretos */
 function AlertaUrgente() {
   const { perfil } = useSessao();
   const ins = useSafeAreaInsets();
-  const [vaga, setVaga] = useState<Vaga | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const id = perfil?.id;
   const tipo = perfil?.tipo;
   const cidade = perfil?.cidade ?? '';
   const { ponto } = useLocalizacao();
   const pontoRef = useRef(ponto);
   pontoRef.current = ponto; // lido na hora do aviso, sem refazer a inscrição
+
+  const mostrar = (a: Aviso) => {
+    setAviso(a);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setAviso(null), 12000);
+  };
+
   useEffect(() => {
     if (tipo !== 'freelancer') return;
-    return ouvirVagasUrgentes(async (id) => {
-      const v = await buscarVaga(id).catch(() => null);
+    return ouvirVagasUrgentes(async (vagaId) => {
+      const v = await buscarVaga(vagaId).catch(() => null);
       if (!v) return;
       const km = distanciaAte(pontoRef.current, v.empresa);
       const perto = km != null ? km <= 30 : v.empresa?.cidade?.toLowerCase() === cidade.toLowerCase();
       if (!perto) return;
-      setVaga(v);
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setVaga(null), 12000);
+      mostrar({
+        rotulo: 'VAGA URGENTE PERTO DE VOCÊ',
+        titulo: `${v.titulo} · ${v.empresa?.nome ?? ''}`,
+        linha: `${v.inicio_em ? quandoComeca(v.inicio_em) : ''} · ${faixaSalarial(v)}`,
+        rota: `/vaga/${v.id}`,
+        icone: 'raio',
+      });
     });
   }, [tipo, cidade]);
 
-  if (!vaga) return null;
+  useEffect(() => {
+    if (tipo !== 'freelancer' || !id) return;
+    return ouvirConvites(id, async (c) => {
+      const v = await buscarVaga(c.vaga_id).catch(() => null);
+      mostrar({
+        rotulo: 'VOCÊ RECEBEU UM CONVITE',
+        titulo: v ? `${v.empresa?.nome ?? 'Estabelecimento'} quer você` : 'Novo convite de trabalho',
+        linha: v ? `${v.titulo}${v.inicio_em ? ' · ' + quandoComeca(v.inicio_em) : ''}` : 'Toque para ver',
+        rota: '/convites',
+        icone: 'enviar',
+      });
+    });
+  }, [tipo, id]);
+
+  if (!aviso) return null;
   return (
     <Pressable
       onPress={() => {
-        setVaga(null);
-        router.push(`/vaga/${vaga.id}`);
+        setAviso(null);
+        router.push(aviso.rota as never);
       }}
       style={[st.alerta, { top: ins.top + 8 }]}>
       <View style={st.alertaIc}>
-        <Icone nome="raio" cor="#fff" tamanho={18} preenchido />
+        <Icone nome={aviso.icone} cor="#fff" tamanho={18} preenchido={aviso.icone === 'raio'} />
       </View>
       <View style={{ flex: 1 }}>
-        <T style={{ color: C.ink, fontSize: 12, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.3 }}>VAGA URGENTE PERTO DE VOCÊ</T>
+        <T style={{ color: C.ink, fontSize: 12, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.3 }}>{aviso.rotulo}</T>
         <T style={{ color: C.ink, fontSize: 14.5, fontFamily: 'Inter_600SemiBold', marginTop: 2 }} numberOfLines={1}>
-          {vaga.titulo} · {vaga.empresa?.nome}
+          {aviso.titulo}
         </T>
         <T style={{ color: C.ink2, fontSize: 13, marginTop: 1 }} numberOfLines={1}>
-          {vaga.inicio_em ? quandoComeca(vaga.inicio_em) : ''} · {faixaSalarial(vaga)}
+          {aviso.linha}
         </T>
       </View>
     </Pressable>

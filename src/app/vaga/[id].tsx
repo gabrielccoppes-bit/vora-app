@@ -2,6 +2,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 
+import { FolhaConvidar, FolhaDenunciar, LinhaReputacao } from '@/components/acoes';
 import { FolhaAvaliar, NotaResumo, type AlvoAvaliacao } from '@/components/avaliacao';
 import { SeloUrgente } from '@/components/cartoes';
 import { Icone, type NomeIcone } from '@/components/icone';
@@ -12,7 +13,11 @@ import {
   buscarVaga,
   candidatar,
   candidatosDaVaga,
+  convitesDaVaga,
   definirStatus,
+  idsBloqueados,
+  listarFavoritos,
+  retirarConvite,
   enviarMensagem,
   encerrarVaga,
   faixaSalarial,
@@ -22,6 +27,8 @@ import {
   totalCandidaturas,
   urgenteAtiva,
   type Candidatura,
+  type Convite,
+  type Favorito,
   type Vaga,
   fotoUrl,
 } from '@/lib/api';
@@ -40,7 +47,14 @@ export default function DetalheVaga() {
   const [minha, setMinha] = useState<Candidatura | null>(null);
   const [salva, setSalva] = useState(false);
   const [candidatos, setCandidatos] = useState<Candidatura[]>([]);
-  const [folha, setFolha] = useState<'candidatar' | 'encerrar' | null>(null);
+  const [folha, setFolha] = useState<'candidatar' | 'encerrar' | 'desistir' | 'favoritos' | null>(null);
+  const [gerir, setGerir] = useState<{ c: Candidatura; acao: 'falta' | 'cancelar' } | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const [convites, setConvites] = useState<Convite[]>([]);
+  const [favoritos, setFavoritos] = useState<Favorito[] | null>(null);
+  const [convidar, setConvidar] = useState<{ id: string; nome: string } | null>(null);
+  const [menu, setMenu] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
   const [avaliar, setAvaliar] = useState<AlvoAvaliacao | null>(null);
   const [decidindo, setDecidindo] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState('');
@@ -59,12 +73,16 @@ export default function DetalheVaga() {
           if (!v) return;
           const dono = v.empresa_id === perfil.id;
           const freela = perfil.tipo === 'freelancer';
-          const [t, cands, minhaC, salvos] = await Promise.all([
+          const [t, cands, minhaC, salvos, convs, bloq] = await Promise.all([
             totalCandidaturas(id),
             dono ? candidatosDaVaga(id) : Promise.resolve([]),
             freela ? minhaCandidatura(id, perfil.id) : Promise.resolve(null),
             freela ? idsSalvos(perfil.id) : Promise.resolve(new Set<string>()),
+            dono ? convitesDaVaga(id).catch(() => []) : Promise.resolve([]),
+            !dono ? idsBloqueados(perfil.id).catch(() => new Set<string>()) : Promise.resolve(new Set<string>()),
           ]);
+          setConvites(convs);
+          setBloqueado(bloq.has(v.empresa_id));
           setTotal(t);
           setCandidatos(cands);
           setMinha(minhaC);
@@ -110,7 +128,7 @@ export default function DetalheVaga() {
     try {
       await definirStatus(c.id, status);
       setCandidatos((l) => l.map((x) => (x.id === c.id ? { ...x, status } : x)));
-      if (status === 'contratado') {
+      if (status === 'contratado' && c.status !== 'falta') {
         // avisa o freelancer pelo chat
         const conversa = await abrirConversa(c.freelancer_id);
         await enviarMensagem(conversa, `Olá, ${c.freelancer?.nome?.split(' ')[0] ?? ''}! Você foi contratado(a) para "${vaga.titulo}". Vamos combinar os detalhes por aqui?`);
@@ -121,6 +139,59 @@ export default function DetalheVaga() {
     } finally {
       setDecidindo(null);
     }
+  }
+
+  /** Falta ou cancelamento depois de contratar (contratante) */
+  async function confirmarGerir() {
+    if (!gerir || !vaga) return;
+    const { c, acao } = gerir;
+    const status = acao === 'falta' ? 'falta' : 'cancelado_empresa';
+    setDecidindo(c.id);
+    try {
+      await definirStatus(c.id, status, motivo);
+      const conversa = await abrirConversa(c.freelancer_id).catch(() => null);
+      if (conversa)
+        await enviarMensagem(
+          conversa,
+          acao === 'falta'
+            ? `Registramos falta no turno de "${vaga.titulo}".${motivo.trim() ? ' ' + motivo.trim() : ''}`
+            : `Precisamos cancelar sua contratação para "${vaga.titulo}". Desculpe o transtorno.${motivo.trim() ? ' Motivo: ' + motivo.trim() : ''}`
+        ).catch(() => {});
+      await recarregarCandidatos();
+      toast(acao === 'falta' ? 'Falta registrada.' : 'Contratação cancelada. Avisamos pelo chat.');
+      setGerir(null);
+      setMotivo('');
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setDecidindo(null);
+    }
+  }
+
+  /** Freelancer desiste depois de contratado */
+  async function desistir() {
+    if (!minha || !vaga || !perfil) return;
+    setEnviando(true);
+    try {
+      await definirStatus(minha.id, 'cancelado_freela', motivo);
+      const conversa = await abrirConversa(vaga.empresa_id).catch(() => null);
+      if (conversa) await enviarMensagem(conversa, `Infelizmente não vou poder trabalhar em "${vaga.titulo}".${motivo.trim() ? ' ' + motivo.trim() : ''} Desculpe o transtorno.`).catch(() => {});
+      setMinha(await minhaCandidatura(vaga.id, perfil.id));
+      setFolha(null);
+      setMotivo('');
+      toast('Participação cancelada. Avisamos o estabelecimento.');
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function abrirFavoritos() {
+    if (!perfil) return;
+    setFolha('favoritos');
+    setFavoritos(null);
+    listarFavoritos(perfil.id).then(setFavoritos).catch(() => setFavoritos([]));
   }
 
   async function recarregarCandidatos() {
@@ -154,6 +225,7 @@ export default function DetalheVaga() {
               onPress={() => Share.share({ message: `${vaga.titulo} — ${vaga.empresa?.nome} (${vaga.modalidade}, ${faixaSalarial(vaga)}). Veja no Vora.` }).catch(() => {})}
             />
             {!empresa ? <BotaoIcone nome="salvar" cor={C.ink} preenchido={salva} rotulo="Salvar vaga" onPress={alternarSalva} /> : null}
+            {!dono ? <BotaoIcone nome="opcoes" cor={C.ink} rotulo="Mais opções" onPress={() => setMenu(true)} /> : null}
           </>
         }
       />
@@ -223,7 +295,7 @@ export default function DetalheVaga() {
           <View style={{ paddingHorizontal: 22, gap: 10 }}>
             {candidatos.length ? (
               candidatos.map((c) => (
-                <View key={c.id} style={[st.cand, c.status === 'recusado' && { opacity: 0.6 }]}>
+                <View key={c.id} style={[st.cand, ['recusado', 'cancelado_freela', 'cancelado_empresa'].includes(c.status) && { opacity: 0.6 }]}>
                   <Pressable style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }} onPress={() => router.push(`/freela/${c.freelancer_id}`)}>
                     <Avatar nome={c.freelancer?.nome ?? '?'} tamanho={42} foto={fotoUrl(c.freelancer)} />
                     <View style={{ flex: 1 }}>
@@ -234,6 +306,11 @@ export default function DetalheVaga() {
                       <View style={{ marginTop: 4 }}>
                         <NotaResumo media={c.freelancer?.nota_media} total={c.freelancer?.nota_total} claro />
                       </View>
+                      {c.freelancer?.faltas || c.freelancer?.cancelamentos ? (
+                        <View style={{ marginTop: 3 }}>
+                          <LinhaReputacao faltas={c.freelancer.faltas} cancelamentos={c.freelancer.cancelamentos} clara />
+                        </View>
+                      ) : null}
                     </View>
                     <Icone nome="seta" tamanho={16} cor="#7A6A61" />
                   </Pressable>
@@ -270,7 +347,31 @@ export default function DetalheVaga() {
                           }>
                           <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.onOrange }}>{c.avaliacao ? `★ ${c.avaliacao.nota} · Editar` : 'Avaliar'}</T>
                         </Pressable>
+                        {!vaga.inicio_em || new Date(vaga.inicio_em).getTime() <= Date.now() ? (
+                          <Pressable style={st.miniClaro} onPress={() => (setMotivo(''), setGerir({ c, acao: 'falta' }))}>
+                            <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.ink }}>Faltou</T>
+                          </Pressable>
+                        ) : null}
+                        <Pressable style={st.miniClaro} onPress={() => (setMotivo(''), setGerir({ c, acao: 'cancelar' }))}>
+                          <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.ink }}>Cancelar</T>
+                        </Pressable>
                       </>
+                    ) : c.status === 'falta' ? (
+                      <>
+                        <View style={[st.selo, { backgroundColor: '#FDE7E7' }]}>
+                          <T style={{ fontSize: 12.5, fontFamily: F.interSemi, color: '#B23B3B' }}>Faltou</T>
+                        </View>
+                        <Pressable style={st.miniClaro} disabled={decidindo === c.id} onPress={() => decidir(c, 'contratado')}>
+                          <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.ink }}>Desfazer</T>
+                        </Pressable>
+                      </>
+                    ) : c.status === 'cancelado_freela' || c.status === 'cancelado_empresa' ? (
+                      <View style={[st.selo, { backgroundColor: '#F1E6DD' }]}>
+                        <T style={{ fontSize: 12.5, fontFamily: F.interSemi, color: C.ink2 }}>
+                          {c.status === 'cancelado_freela' ? 'Freelancer cancelou' : 'Você cancelou'}
+                          {c.ultima_hora ? ' · em cima da hora' : ''}
+                        </T>
+                      </View>
                     ) : (
                       <Pressable style={st.miniClaro} onPress={() => decidir(c, 'pendente')}>
                         <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.ink }}>Recusado · desfazer</T>
@@ -287,8 +388,37 @@ export default function DetalheVaga() {
               <T style={{ color: '#7A6A61' }}>Ainda sem candidatos.</T>
             )}
           </View>
+          {convites.length ? (
+            <>
+              <T style={{ color: C.ink, fontFamily: F.interMed, fontSize: 18, paddingHorizontal: 22, marginTop: 22, marginBottom: 10 }}>Convidados</T>
+              <View style={{ paddingHorizontal: 22, gap: 8 }}>
+                {convites.map((cv) => (
+                  <View key={cv.id} style={[st.cand, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+                    <Avatar nome={cv.freelancer?.nome ?? '?'} tamanho={36} foto={fotoUrl(cv.freelancer)} />
+                    <T style={{ color: C.ink, flex: 1, fontFamily: F.interMed }} numberOfLines={1}>
+                      {cv.freelancer?.nome}
+                    </T>
+                    <T style={{ color: cv.status === 'aceito' ? '#1F7A4C' : '#7A6A61', fontSize: 12.5, fontFamily: F.interSemi }}>
+                      {cv.status === 'aceito' ? 'Aceitou' : cv.status === 'recusado' ? 'Recusou' : 'Aguardando'}
+                    </T>
+                    {cv.status === 'pendente' ? (
+                      <Pressable
+                        hitSlop={8}
+                        onPress={async () => {
+                          await retirarConvite(cv.id).catch(() => {});
+                          setConvites((l) => l.filter((x) => x.id !== cv.id));
+                        }}>
+                        <Icone nome="fechar" tamanho={16} cor="#7A6A61" />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : null}
           {vaga.ativa ? (
             <View style={st.acoes}>
+              <Botao titulo="Convidar favoritos" icone="estrela" onPress={abrirFavoritos} />
               <Botao titulo="Encerrar vaga" icone="lixo" variante="contornoEscuro" onPress={() => setFolha('encerrar')} />
             </View>
           ) : null}
@@ -300,6 +430,7 @@ export default function DetalheVaga() {
           {minha?.status === 'contratado' ? (
             <>
               <Botao titulo="Você foi contratado(a)! 🎉" icone="check" variante="feito" desativado />
+              <Botao titulo="Não vou poder ir" variante="fantasma" onPress={() => (setMotivo(''), setFolha('desistir'))} />
               <Botao
                 titulo={minha.avaliacao ? `Sua avaliação: ★ ${minha.avaliacao.nota} · Editar` : 'Avaliar este estabelecimento'}
                 icone="estrela"
@@ -318,6 +449,17 @@ export default function DetalheVaga() {
                 }
               />
             </>
+          ) : minha?.status === 'cancelado_freela' ? (
+            <Botao titulo="Você cancelou sua participação" variante="fantasma" desativado />
+          ) : minha?.status === 'cancelado_empresa' ? (
+            <Botao titulo="O estabelecimento cancelou a contratação" variante="fantasma" desativado />
+          ) : minha?.status === 'falta' ? (
+            <>
+              <Botao titulo="O estabelecimento registrou falta" variante="fantasma" desativado />
+              <T style={{ color: '#7A6A61', fontSize: 13, textAlign: 'center' }}>Se isso estiver errado, converse com o estabelecimento ou toque em ⋯ para denunciar.</T>
+            </>
+          ) : bloqueado && !minha ? (
+            <Botao titulo="Você bloqueou este estabelecimento" variante="fantasma" desativado />
           ) : minha?.status === 'recusado' ? (
             <Botao titulo="Candidatura não selecionada desta vez" variante="fantasma" desativado />
           ) : minha ? (
@@ -361,6 +503,77 @@ export default function DetalheVaga() {
         />
         <Botao titulo="Cancelar" variante="fantasma" onPress={() => setFolha(null)} />
       </Folha>
+      <Folha visivel={!!gerir} aoFechar={() => setGerir(null)} titulo={gerir?.acao === 'falta' ? 'Registrar falta?' : 'Cancelar contratação?'}>
+        <T style={{ color: C.muted, lineHeight: 21 }}>
+          {gerir?.acao === 'falta'
+            ? `${gerir?.c.freelancer?.nome?.split(' ')[0] ?? 'O freelancer'} não apareceu no turno? A falta fica registrada no perfil e ajuda outros estabelecimentos. Use só quando a pessoa realmente não veio.`
+            : 'O cancelamento fica registrado no perfil do seu estabelecimento. Cancelamentos com menos de 24h do início aparecem como “em cima da hora”.'}
+        </T>
+        <Campo rotulo="Motivo (opcional)" valor={motivo} aoMudar={setMotivo} multiline maxLength={300} />
+        <Botao titulo={gerir?.acao === 'falta' ? 'Registrar falta' : 'Cancelar contratação'} variante="perigo" carregando={!!gerir && decidindo === gerir.c.id} onPress={confirmarGerir} estilo={{ marginTop: 18 }} />
+        <Botao titulo="Voltar" variante="fantasma" onPress={() => setGerir(null)} />
+      </Folha>
+
+      <Folha visivel={folha === 'desistir'} aoFechar={() => setFolha(null)} titulo="Cancelar sua participação?">
+        <T style={{ color: C.muted, lineHeight: 21 }}>
+          {vaga.inicio_em && new Date(vaga.inicio_em).getTime() - Date.now() < 24 * 3600 * 1000
+            ? 'Faltam menos de 24 horas para o início. O cancelamento vai aparecer como “em cima da hora” no seu perfil.'
+            : 'O cancelamento fica registrado no seu perfil. Avise o quanto antes para o estabelecimento achar outra pessoa.'}
+        </T>
+        <Campo rotulo="Motivo (opcional)" valor={motivo} aoMudar={setMotivo} multiline maxLength={300} />
+        <Botao titulo="Cancelar participação" variante="perigo" carregando={enviando} onPress={desistir} estilo={{ marginTop: 18 }} />
+        <Botao titulo="Voltar" variante="fantasma" onPress={() => setFolha(null)} />
+      </Folha>
+
+      <Folha visivel={folha === 'favoritos'} aoFechar={() => setFolha(null)} titulo="Convidar favoritos">
+        {favoritos === null ? (
+          <Carregando />
+        ) : favoritos.length === 0 ? (
+          <T style={{ color: C.muted, lineHeight: 21 }}>Você ainda não tem favoritos. Toque na estrela no perfil de um freelancer para salvá-lo.</T>
+        ) : (
+          favoritos.map((f) => {
+            const jaConvidado = convites.some((cv) => cv.freelancer_id === f.freelancer_id) || candidatos.some((c) => c.freelancer_id === f.freelancer_id);
+            return (
+              <View key={f.freelancer_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}>
+                <Avatar nome={f.freelancer.nome} tamanho={40} foto={fotoUrl(f.freelancer)} />
+                <View style={{ flex: 1 }}>
+                  <T style={{ fontFamily: F.interSemi }}>{f.freelancer.nome}</T>
+                  <T style={{ color: C.muted, fontSize: 12.5 }}>{f.freelancer.titulo}</T>
+                </View>
+                <Pressable
+                  disabled={jaConvidado}
+                  onPress={() => {
+                    setFolha(null);
+                    setConvidar({ id: f.freelancer_id, nome: f.freelancer.nome });
+                  }}
+                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: jaConvidado ? C.card2 : C.orange }}>
+                  <T style={{ fontSize: 13, fontFamily: F.interSemi, color: jaConvidado ? C.muted : C.onOrange }}>{jaConvidado ? 'Já está' : 'Convidar'}</T>
+                </Pressable>
+              </View>
+            );
+          })
+        )}
+      </Folha>
+
+      <FolhaConvidar
+        visivel={!!convidar}
+        aoFechar={() => {
+          setConvidar(null);
+          if (vaga) convitesDaVaga(vaga.id).then(setConvites).catch(() => {});
+        }}
+        freelancer={convidar}
+        vagaId={vaga.id}
+      />
+      {vaga.empresa ? (
+        <FolhaDenunciar
+          visivel={menu}
+          aoFechar={() => setMenu(false)}
+          alvo={{ id: vaga.empresa_id, nome: vaga.empresa.nome }}
+          vagaId={vaga.id}
+          bloqueado={bloqueado}
+          aoMudarBloqueio={setBloqueado}
+        />
+      ) : null}
     </Tela>
   );
 }

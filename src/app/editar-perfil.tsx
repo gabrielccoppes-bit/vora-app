@@ -1,5 +1,3 @@
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -18,28 +16,13 @@ import {
   salvarPerfil,
   type DadosPrivados,
 } from '@/lib/api';
+import { escolherImagem } from '@/lib/imagem';
 import { senhaVazada } from '@/lib/senha';
 import { useSessao } from '@/lib/sessao';
 import { digitos, fmtCEP, fmtTelefone, senhaForte } from '@/lib/validacao';
 import { C, CATEGORIAS, F, SETORES } from '@/theme';
 
 type Form = { nome: string; titulo: string; area: string; telefone: string; respNome: string; respCargo: string };
-
-/** base64 → bytes (para enviar a foto ao Storage em qualquer plataforma) */
-function base64ParaBytes(b64: string) {
-  const tab = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  const limpo = b64.replace(/^data:[^,]+,/, '').replace(/[^A-Za-z0-9+/]/g, '');
-  const bytes = new Uint8Array(Math.floor((limpo.length * 3) / 4));
-  let j = 0;
-  for (let i = 0; i < limpo.length; i += 4) {
-    const [a, b, c, d] = [0, 1, 2, 3].map((k) => tab.indexOf(limpo[i + k] ?? 'A'));
-    const n = (a << 18) | (b << 12) | ((c & 63) << 6) | (d & 63);
-    bytes[j++] = (n >> 16) & 255;
-    if (i + 2 < limpo.length) bytes[j++] = (n >> 8) & 255;
-    if (i + 3 < limpo.length) bytes[j++] = n & 255;
-  }
-  return bytes.slice(0, j).buffer;
-}
 
 export default function EditarPerfil() {
   const { perfil, sessao, recarregarPerfil } = useSessao();
@@ -98,22 +81,11 @@ export default function EditarPerfil() {
   async function escolherFoto() {
     setOpcoesFoto(false);
     if (!perfil) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return toast('Permita o acesso às fotos para escolher uma imagem.');
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 1 });
-    if (r.canceled || !r.assets?.[0]) return;
-    const a = r.assets[0];
-    setFoto('enviando');
     try {
-      // recorta no centro (quadrado), reduz para 512px e converte em JPEG
-      const lado = Math.min(a.width || 512, a.height || 512);
-      const acoes: ImageManipulator.Action[] = [];
-      if (a.width && a.height && a.width !== a.height)
-        acoes.push({ crop: { originX: Math.floor((a.width - lado) / 2), originY: Math.floor((a.height - lado) / 2), width: lado, height: lado } });
-      if (lado > 512) acoes.push({ resize: { width: 512, height: 512 } });
-      const img = await ImageManipulator.manipulateAsync(a.uri, acoes, { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true });
-      if (!img.base64) throw new Error('Não foi possível ler a imagem.');
-      await enviarFoto(perfil.id, base64ParaBytes(img.base64));
+      const img = await escolherImagem({ origem: 'galeria', quadrado: true, max: 512 });
+      if (!img) return;
+      setFoto('enviando');
+      await enviarFoto(perfil.id, img.bytes);
       await recarregarPerfil();
       toast(empresa ? 'Logo atualizado!' : 'Foto atualizada!');
     } catch (e) {

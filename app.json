@@ -46,7 +46,7 @@
         "expo-image-picker",
         {
           "photosPermission": "O Vora usa suas fotos para você escolher a foto de perfil ou o logo do estabelecimento.",
-          "cameraPermission": false,
+          "cameraPermission": "O Vora usa a câmera para a selfie e a foto do documento na verificação de identidade.",
           "microphonePermission": false
         }
       ]

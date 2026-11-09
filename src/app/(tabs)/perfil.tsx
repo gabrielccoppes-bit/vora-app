@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { Icone, type NomeIcone } from '@/components/icone';
 import { Avatar, Botao, Carregando, Folha, T, Tela, Topo, useToast } from '@/components/ui';
-import { excluirMinhaConta, fotoUrl, exportarMeusDados, meusDadosPrivados, minhasVagas, sair, type DadosPrivados, type Vaga } from '@/lib/api';
+import { excluirMinhaConta, fotoUrl, convitesPendentes, souAdmin, exportarMeusDados, meusDadosPrivados, minhasVagas, sair, type DadosPrivados, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { fmtCEP, fmtCNPJ, ocultarCPF, ocultarEmail, ocultarTelefone, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -17,12 +17,16 @@ export default function Perfil() {
   const [exportado, setExportado] = useState<string | null>(null);
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
+  const [admin, setAdmin] = useState(false);
+  const [nConvites, setNConvites] = useState(0);
   const empresa = perfil?.tipo === 'empresa';
 
   useFocusEffect(
     useCallback(() => {
       if (!perfil) return;
       meusDadosPrivados(perfil.id).then(setDados).catch(() => {});
+      souAdmin().then(setAdmin).catch(() => {});
+      if (perfil.tipo === 'freelancer') convitesPendentes(perfil.id).then(setNConvites).catch(() => {});
       if (perfil.tipo === 'empresa') {
         minhasVagas(perfil.id)
           .then(setVagas)
@@ -70,6 +74,14 @@ export default function Perfil() {
 
       {empresa ? (
         <>
+        <Grupo titulo="Equipe">
+          <Item icone="estrela" onPress={() => router.push('/favoritos')} sub="Convide de novo quem trabalhou bem">
+            Favoritos
+          </Item>
+          <Item icone="arquivo" onPress={() => router.push('/relatorio')} sub="Turnos, faltas e valores do mês">
+            Relatório do mês
+          </Item>
+        </Grupo>
         <Grupo titulo="Avaliações">
           <Item icone="estrela" onPress={() => router.push('/avaliar')} sub="Avalie quem trabalhou com você">
             Avaliar freelancers
@@ -97,6 +109,15 @@ export default function Perfil() {
         </>
       ) : (
         <Grupo titulo="Minha atividade">
+          <Item icone="sino" onPress={() => router.push('/convites')} sub={nConvites ? `${nConvites} aguardando resposta` : 'Estabelecimentos que chamaram você'}>
+            Convites
+          </Item>
+          <Item icone="relogio" onPress={() => router.push('/disponibilidade')} sub="Dias e turnos em que você está livre">
+            Minha disponibilidade
+          </Item>
+          <Item icone="arquivo" onPress={() => router.push('/curriculo')} sub="Aparece no seu perfil público">
+            Certificados e experiência
+          </Item>
           <Item icone="enviar" onPress={() => router.push({ pathname: '/lista', params: { tipo: 'candidaturas' } })}>
             Minhas candidaturas
           </Item>
@@ -156,7 +177,21 @@ export default function Perfil() {
         <Item icone="cadeado" onPress={() => router.push({ pathname: '/editar-perfil', params: { secao: 'senha' } })}>
           Alterar senha
         </Item>
+        <Item icone="escudo" onPress={() => router.push('/verificacao')} sub={perfil.verificado ? 'Verificada ✓' : 'Ganhe o selo de verificado'}>
+          Verificar identidade
+        </Item>
+        <Item icone="fechar" onPress={() => router.push('/bloqueados')}>
+          Pessoas bloqueadas
+        </Item>
       </Grupo>
+
+      {admin ? (
+        <Grupo titulo="Equipe Vora">
+          <Item icone="escudo" onPress={() => router.push('/admin')} sub="Números, denúncias e verificações">
+            Painel do Vora
+          </Item>
+        </Grupo>
+      ) : null}
 
       <Grupo titulo="Privacidade (LGPD)">
         <Item icone="baixar" onPress={exportar}>

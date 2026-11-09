@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
 import { Botao, BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
-import { alternarSalvo, candidaturasRecebidas, contratadosDaEmpresa, minhasContratacoes, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
+import { alternarSalvo, candidaturasRecebidas, contratadosDaEmpresa, convitesPendentes, disponibilidadeDe, idsFavoritos, minhasContratacoes, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
 import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { primeiroNome, tempoRelativo } from '@/lib/validacao';
@@ -21,6 +21,9 @@ export default function Inicio() {
   const [raio, setRaio] = useState(10);
   const [proximas, setProximas] = useState<Vaga[] | null>(null);
   const [paraAvaliar, setParaAvaliar] = useState(0);
+  const [convites, setConvites] = useState(0);
+  const [semAgenda, setSemAgenda] = useState(false);
+  const [nFavoritos, setNFavoritos] = useState(0);
   const [area, setArea] = useState('Todas');
   const [busca, setBusca] = useState('');
   const [vagas, setVagas] = useState<Vaga[] | null>(null);
@@ -37,19 +40,29 @@ export default function Inicio() {
     try {
       // tudo em paralelo: a tela não espera uma consulta terminar para começar a próxima
       if (empresa) {
-        const [s, cands, contratados] = await Promise.all([listarServicos({ area, limite: 6 }), candidaturasRecebidas(perfil.id), contratadosDaEmpresa(perfil.id)]);
+        const [s, cands, contratados, favs] = await Promise.all([
+          listarServicos({ area, limite: 6 }),
+          candidaturasRecebidas(perfil.id),
+          contratadosDaEmpresa(perfil.id),
+          idsFavoritos(perfil.id).catch(() => new Set<string>()),
+        ]);
         setParaAvaliar(contratados.filter((c) => !c.avaliacao).length);
+        setNFavoritos(favs.size);
         setFreelas(s.filter((x) => x.freelancer_id !== perfil.id));
         setVagas([]);
         setAvisos(cands.map((c) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${c.vaga.titulo}`, em: c.criado_em, vaga: c.vaga.id })));
       } else {
-        const [v, urg, sv, prox, contratacoes] = await Promise.all([
+        const [v, urg, sv, prox, contratacoes, nConv, agenda] = await Promise.all([
           listarVagas({ area, limite: 8 }),
           urgentesAbertas(),
           idsSalvos(perfil.id),
           ponto ? vagasProximas(ponto, raio, 12) : Promise.resolve(null),
           minhasContratacoes(perfil.id).catch(() => []),
+          convitesPendentes(perfil.id).catch(() => 0),
+          disponibilidadeDe(perfil.id).catch(() => null),
         ]);
+        setConvites(nConv);
+        setSemAgenda(agenda !== null && agenda.length === 0);
         setParaAvaliar(contratacoes.filter((c) => !c.avaliacao).length);
         const daArea = (x: Vaga) => area === 'Todas' || x.area === area;
         setVagas(v.filter((x) => x.empresa_id !== perfil.id));
@@ -172,6 +185,9 @@ export default function Inicio() {
               <Icone nome="seta" tamanho={18} cor={C.muted} />
             </Pressable>
           ) : null}
+          {nFavoritos > 0 ? (
+            <Cartao icone="estrela" titulo={`Seus favoritos (${nFavoritos})`} sub="Chame de novo quem já trabalhou bem com você." onPress={() => router.push('/favoritos')} />
+          ) : null}
           <Cabecalho titulo="Freelancers em destaque" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'freelas' } })} />
           <View style={st.lista}>
             {freelas === null ? <Carregando /> : freelas.length ? freelas.map((s) => <CartaoFreela key={s.id} servico={s} />) : <Vazio texto="Nenhum freelancer nessa categoria ainda." />}
@@ -192,6 +208,18 @@ export default function Inicio() {
               </View>
               <Icone nome="seta" tamanho={18} cor={C.muted} />
             </Pressable>
+          ) : null}
+          {convites > 0 ? (
+            <Cartao
+              icone="enviar"
+              destaque
+              titulo={convites === 1 ? 'Você tem 1 convite' : `Você tem ${convites} convites`}
+              sub="Estabelecimentos querem você na equipe. Responda logo!"
+              onPress={() => router.push('/convites')}
+            />
+          ) : null}
+          {semAgenda ? (
+            <Cartao icone="relogio" titulo="Marque sua disponibilidade" sub="Quem informa os dias e turnos livres aparece primeiro para os estabelecimentos." onPress={() => router.push('/disponibilidade')} />
           ) : null}
           {urgentes.length ? (
             <>
@@ -279,6 +307,21 @@ export default function Inicio() {
         )}
       </Folha>
     </ScrollView>
+  );
+}
+
+function Cartao({ icone, titulo, sub, onPress, destaque }: { icone: 'estrela' | 'enviar' | 'relogio'; titulo: string; sub: string; onPress: () => void; destaque?: boolean }) {
+  return (
+    <Pressable style={[st.ativarLoc, destaque && { borderColor: C.orange, backgroundColor: '#FF5A1214' }]} onPress={onPress}>
+      <View style={st.ativarIc}>
+        <Icone nome={icone} cor={C.orange} preenchido={icone === 'estrela'} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <T style={{ fontFamily: F.interSemi, fontSize: 15 }}>{titulo}</T>
+        <T style={{ color: C.muted, fontSize: 13, marginTop: 3, lineHeight: 18 }}>{sub}</T>
+      </View>
+      <Icone nome="seta" tamanho={18} cor={C.muted} />
+    </Pressable>
   );
 }
 

@@ -4,8 +4,9 @@ import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icone } from '@/components/icone';
-import { Carregando, T, Tela, Topo, useToast } from '@/components/ui';
-import { enviarMensagem, mensagens as carregarMensagens, ouvirMensagens, type Mensagem } from '@/lib/api';
+import { FolhaDenunciar } from '@/components/acoes';
+import { BotaoIcone, Carregando, T, Tela, Topo, useToast } from '@/components/ui';
+import { conversaBloqueada, enviarMensagem, idsBloqueados, mensagens as carregarMensagens, ouvirMensagens, outroDaConversa, type Mensagem } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { C, F } from '@/theme';
 
@@ -17,6 +18,22 @@ export default function Chat() {
   const [msgs, setMsgs] = useState<Mensagem[] | null>(null);
   const [texto, setTexto] = useState('');
   const lista = useRef<FlatList<Mensagem>>(null);
+  const [outro, setOutro] = useState<string | null>(null);
+  const [bloqueada, setBloqueada] = useState(false); // por qualquer um dos dois
+  const [euBloqueei, setEuBloqueei] = useState(false);
+  const [menu, setMenu] = useState(false);
+
+  useEffect(() => {
+    if (!id || !perfil) return;
+    (async () => {
+      const o = await outroDaConversa(id, perfil.id).catch(() => null);
+      setOutro(o);
+      if (!o) return;
+      const [b, meus] = await Promise.all([conversaBloqueada(perfil.id, o), idsBloqueados(perfil.id).catch(() => new Set<string>())]);
+      setBloqueada(b);
+      setEuBloqueei(meus.has(o));
+    })();
+  }, [id, perfil]);
 
   useEffect(() => {
     if (!id) return;
@@ -42,7 +59,7 @@ export default function Chat() {
 
   return (
     <Tela rolar={false}>
-      <Topo titulo={nome || 'Conversa'} />
+      <Topo titulo={nome || 'Conversa'} direita={outro ? <BotaoIcone nome="opcoes" rotulo="Mais opções" onPress={() => setMenu(true)} /> : null} />
       {msgs === null ? (
         <Carregando />
       ) : (
@@ -66,6 +83,13 @@ export default function Chat() {
           }}
         />
       )}
+      {bloqueada ? (
+        <View style={[st.compositor, { paddingBottom: Math.max(ins.bottom, 12), justifyContent: 'center' }]}>
+          <T style={{ color: C.muted, textAlign: 'center', paddingVertical: 12 }}>
+            {euBloqueei ? 'Você bloqueou esta pessoa. Toque em ⋯ para desbloquear.' : 'Não é possível enviar mensagens nesta conversa.'}
+          </T>
+        </View>
+      ) : (
       <View style={[st.compositor, { paddingBottom: Math.max(ins.bottom, 12) }]}>
         <TextInput
           value={texto}
@@ -81,6 +105,17 @@ export default function Chat() {
           <Icone nome="enviar" tamanho={18} cor={C.onOrange} />
         </Pressable>
       </View>
+      )}
+      <FolhaDenunciar
+        visivel={menu}
+        aoFechar={() => setMenu(false)}
+        alvo={outro ? { id: outro, nome: nome || 'Esta pessoa' } : null}
+        bloqueado={euBloqueei}
+        aoMudarBloqueio={async (b) => {
+          setEuBloqueei(b);
+          if (perfil && outro) setBloqueada(b || (await conversaBloqueada(perfil.id, outro)));
+        }}
+      />
     </Tela>
   );
 }

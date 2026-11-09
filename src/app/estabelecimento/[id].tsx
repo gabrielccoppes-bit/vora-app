@@ -2,11 +2,12 @@ import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
+import { FolhaDenunciar, LinhaReputacao } from '@/components/acoes';
 import { CartaoAvaliacao, Estrelas, NotaResumo } from '@/components/avaliacao';
 import { CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
-import { Avatar, Carregando, T, Tela, Topo, Vazio } from '@/components/ui';
-import { avaliacoesDoEstabelecimento, perfilPublico, vagasDoEstabelecimento, type Avaliacao, type Perfil, type Vaga, fotoUrl } from '@/lib/api';
+import { Avatar, BotaoIcone, Carregando, T, Tela, Topo, Vazio } from '@/components/ui';
+import { avaliacoesDoEstabelecimento, idsBloqueados, perfilPublico, vagasDoEstabelecimento, type Avaliacao, type Perfil, type Vaga, fotoUrl } from '@/lib/api';
 import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { C, F } from '@/theme';
@@ -19,18 +20,26 @@ export default function Estabelecimento() {
   const [p, setP] = useState<Perfil | null | undefined>(undefined);
   const [avals, setAvals] = useState<Avaliacao[] | null>(null);
   const [vagas, setVagas] = useState<Vaga[]>([]);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [menu, setMenu] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       if (!id) return;
-      Promise.all([perfilPublico(id), avaliacoesDoEstabelecimento(id), vagasDoEstabelecimento(id)])
-        .then(([perf, av, vs]) => {
+      Promise.all([
+        perfilPublico(id),
+        avaliacoesDoEstabelecimento(id),
+        vagasDoEstabelecimento(id),
+        eu ? idsBloqueados(eu.id).catch(() => new Set<string>()) : Promise.resolve(new Set<string>()),
+      ])
+        .then(([perf, av, vs, bloq]) => {
           setP(perf && perf.tipo === 'empresa' ? perf : null);
           setAvals(av);
           setVagas(vs);
+          setBloqueado(bloq.has(id));
         })
         .catch(() => setP(null));
-    }, [id])
+    }, [id, eu])
   );
 
   if (p === undefined) return <Carregando clara />;
@@ -49,7 +58,7 @@ export default function Estabelecimento() {
 
   return (
     <Tela clara>
-      <Topo clara titulo={meu ? 'Meu estabelecimento' : undefined} />
+      <Topo clara titulo={meu ? 'Meu estabelecimento' : undefined} direita={meu ? null : <BotaoIcone nome="opcoes" cor={C.ink} rotulo="Mais opções" onPress={() => setMenu(true)} />} />
       <View style={{ alignItems: 'center', paddingHorizontal: 22 }}>
         <Avatar nome={p.nome} tamanho={84} quadrado foto={fotoUrl(p)} />
         <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 22, marginTop: 14, textAlign: 'center' }}>{p.nome}</T>
@@ -64,6 +73,11 @@ export default function Estabelecimento() {
         <View style={{ marginTop: 8 }}>
           <NotaResumo media={p.nota_media} total={p.nota_total} claro />
         </View>
+        <View style={{ marginTop: 6 }}>
+          <LinhaReputacao cancelamentos={p.cancelamentos} empresa clara />
+        </View>
+        {p.verificado ? <T style={{ color: '#2E7D4F', fontSize: 13, marginTop: 4 }}>✓ Estabelecimento verificado</T> : null}
+        {bloqueado ? <T style={{ color: '#7A6A61', fontSize: 13, marginTop: 8 }}>Você bloqueou este estabelecimento.</T> : null}
       </View>
 
       <View style={{ height: 1, backgroundColor: '#E5D3C5', marginHorizontal: 22, marginTop: 22, marginBottom: 6 }} />
@@ -120,6 +134,7 @@ export default function Estabelecimento() {
           </View>
         </>
       ) : null}
+      <FolhaDenunciar visivel={menu} aoFechar={() => setMenu(false)} alvo={{ id: p.id, nome: p.nome }} bloqueado={bloqueado} aoMudarBloqueio={setBloqueado} />
     </Tela>
   );
 }

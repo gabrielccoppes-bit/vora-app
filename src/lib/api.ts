@@ -20,6 +20,9 @@ export type Perfil = {
   nota_media: number | null; // média das avaliações (mantida pelo banco)
   nota_total: number;
   foto_v: number | null; // versão da foto de perfil/logo (null = sem foto)
+  suspenso: boolean; // suspensa pela moderação
+  faltas: number; // freelancer: faltas marcadas pelos contratantes
+  cancelamentos: number; // contratações canceladas por esta conta
   criado_em: string;
 };
 
@@ -49,6 +52,8 @@ type PerfilResumo = Pick<Perfil, 'id' | 'nome' | 'titulo' | 'cidade' | 'uf' | 'v
   nota_media?: number | null;
   nota_total?: number;
   foto_v?: number | null;
+  faltas?: number;
+  cancelamentos?: number;
 };
 
 export type Vaga = {
@@ -84,7 +89,7 @@ export type Servico = {
   perfil: PerfilResumo;
 };
 
-export type StatusCandidatura = 'pendente' | 'contratado' | 'recusado';
+export type StatusCandidatura = 'pendente' | 'contratado' | 'recusado' | 'cancelado_freela' | 'cancelado_empresa' | 'falta';
 export type DirecaoAvaliacao = 'empresa_para_freela' | 'freela_para_empresa';
 export type Avaliacao = {
   direcao: DirecaoAvaliacao;
@@ -107,11 +112,14 @@ export type Candidatura = {
   freelancer_id: string;
   mensagem: string | null;
   status: StatusCandidatura;
+  motivo: string | null;
+  ultima_hora: boolean;
+  alterado_em: string | null;
   criado_em: string;
   freelancer?: PerfilResumo;
   avaliacao?: Pick<Avaliacao, 'id' | 'nota' | 'tags' | 'comentario'> | null;
 };
-const FREELA_EMBED = 'freelancer:perfis!candidaturas_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v)';
+const FREELA_EMBED = 'freelancer:perfis!candidaturas_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, faltas, cancelamentos)';
 /** PostgREST devolve objeto (1:1) ou lista; normaliza para objeto */
 const umOuNada = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? (x[0] ?? null) : (x ?? null));
 
@@ -403,8 +411,12 @@ export async function candidatosDaVaga(vagaId: string) {
   ).map((c) => ({ ...c, avaliacao: umOuNada(c.avaliacao) }));
 }
 /** Contratante decide a candidatura */
-export async function definirStatus(candidaturaId: string, status: StatusCandidatura) {
-  ok(await supabase.from('candidaturas').update({ status }).eq('id', candidaturaId));
+export async function definirStatus(candidaturaId: string, status: StatusCandidatura, motivo?: string) {
+  const { error } = await supabase
+    .from('candidaturas')
+    .update(motivo !== undefined ? { status, motivo: motivo.trim() || null } : { status })
+    .eq('id', candidaturaId);
+  if (error) throw new Error(error.message.includes('não permitida') ? 'Essa mudança não é permitida.' : 'Não foi possível atualizar agora.');
 }
 /** Freelancers contratados pela empresa (com ou sem avaliação) */
 export async function contratadosDaEmpresa(empresaId: string) {
@@ -555,4 +567,266 @@ export function ouvirMensagens(conversaId: string, aoReceber: (m: Mensagem) => v
   return () => {
     supabase.removeChannel(canal);
   };
+}
+
+/* ================= Disponibilidade ================= */
+export type Turno = 'manha' | 'tarde' | 'noite' | 'madrugada';
+export const TURNOS: { id: Turno; nome: string; horas: string }[] = [
+  { id: 'manha', nome: 'Manhã', horas: '6h–12h' },
+  { id: 'tarde', nome: 'Tarde', horas: '12h–18h' },
+  { id: 'noite', nome: 'Noite', horas: '18h–0h' },
+  { id: 'madrugada', nome: 'Madrugada', horas: '0h–6h' },
+];
+export const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+export type Disponivel = { dia: number; turno: Turno };
+/** Turno de agora (para "disponível agora") */
+export function turnoAtual(d = new Date()): Disponivel {
+  const h = d.getHours();
+  const turno: Turno = h < 6 ? 'madrugada' : h < 12 ? 'manha' : h < 18 ? 'tarde' : 'noite';
+  return { dia: d.getDay(), turno };
+}
+
+export async function disponibilidadeDe(freelancerId: string) {
+  return ok<Disponivel[]>(await supabase.from('disponibilidade').select('dia, turno').eq('freelancer_id', freelancerId));
+}
+export async function salvarDisponibilidade(freelancerId: string, itens: Disponivel[]) {
+  ok(await supabase.from('disponibilidade').delete().eq('freelancer_id', freelancerId));
+  if (itens.length) ok(await supabase.from('disponibilidade').insert(itens.map((i) => ({ ...i, freelancer_id: freelancerId }))));
+}
+/** Freelancers disponíveis num dia (e turno, se informado) */
+export async function disponiveisEm(dia: number, turno?: Turno) {
+  let q = supabase.from('disponibilidade').select('freelancer_id').eq('dia', dia);
+  if (turno) q = q.eq('turno', turno);
+  return new Set(ok<{ freelancer_id: string }[]>(await q.limit(1000)).map((x) => x.freelancer_id));
+}
+
+/* ================= Favoritos (contratante) ================= */
+export async function idsFavoritos(empresaId: string) {
+  return new Set(ok<{ freelancer_id: string }[]>(await supabase.from('favoritos').select('freelancer_id').eq('empresa_id', empresaId)).map((x) => x.freelancer_id));
+}
+export async function alternarFavorito(empresaId: string, freelancerId: string, favoritar: boolean) {
+  if (favoritar) ok(await supabase.from('favoritos').insert({ empresa_id: empresaId, freelancer_id: freelancerId }));
+  else ok(await supabase.from('favoritos').delete().eq('empresa_id', empresaId).eq('freelancer_id', freelancerId));
+}
+export type Favorito = { freelancer_id: string; criado_em: string; freelancer: PerfilResumo & { area?: string | null } };
+export async function listarFavoritos(empresaId: string) {
+  return ok<Favorito[]>(
+    await supabase
+      .from('favoritos')
+      .select('freelancer_id, criado_em, freelancer:perfis!favoritos_freelancer_id_fkey(id, nome, titulo, area, cidade, uf, verificado, nota_media, nota_total, foto_v, faltas, cancelamentos)')
+      .eq('empresa_id', empresaId)
+      .order('criado_em', { ascending: false })
+  ).filter((f) => f.freelancer);
+}
+
+/* ================= Convites diretos ================= */
+export type Convite = {
+  id: string;
+  vaga_id: string;
+  empresa_id: string;
+  freelancer_id: string;
+  mensagem: string | null;
+  status: 'pendente' | 'aceito' | 'recusado';
+  criado_em: string;
+  respondido_em: string | null;
+  vaga?: Pick<Vaga, 'id' | 'titulo' | 'valor_min' | 'valor_max' | 'periodo' | 'inicio_em' | 'ativa' | 'urgente'> & { empresa: PerfilResumo };
+  freelancer?: PerfilResumo;
+};
+export async function convidar(vagaId: string, empresaId: string, freelancerId: string, mensagem: string) {
+  const { error } = await supabase.from('convites').insert({ vaga_id: vagaId, empresa_id: empresaId, freelancer_id: freelancerId, mensagem: mensagem.trim() || null });
+  if (error) throw new Error(error.code === '23505' ? 'Você já convidou essa pessoa para essa vaga.' : 'Não foi possível enviar o convite.');
+}
+export async function meusConvites(freelancerId: string) {
+  return ok<Convite[]>(
+    await supabase
+      .from('convites')
+      .select('*, vaga:vagas(id, titulo, valor_min, valor_max, periodo, inicio_em, ativa, urgente, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, cancelamentos))')
+      .eq('freelancer_id', freelancerId)
+      .order('criado_em', { ascending: false })
+      .limit(100)
+  ).filter((c) => c.vaga);
+}
+export async function convitesPendentes(freelancerId: string) {
+  const { count } = await supabase.from('convites').select('id', { count: 'exact', head: true }).eq('freelancer_id', freelancerId).eq('status', 'pendente');
+  return count ?? 0;
+}
+export async function convitesDaVaga(vagaId: string) {
+  return ok<Convite[]>(
+    await supabase
+      .from('convites')
+      .select('*, freelancer:perfis!convites_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v)')
+      .eq('vaga_id', vagaId)
+      .order('criado_em', { ascending: false })
+  );
+}
+export async function responderConvite(id: string, aceitar: boolean) {
+  const { error } = await supabase.rpc('responder_convite', { p_convite: id, p_aceitar: aceitar });
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível responder agora.');
+}
+export async function retirarConvite(id: string) {
+  ok(await supabase.from('convites').delete().eq('id', id));
+}
+/** Aviso em tempo real de convite novo (app aberto) */
+export function ouvirConvites(freelancerId: string, aoReceber: (c: Convite) => void) {
+  const canal = supabase
+    .channel(`convites-${freelancerId}-${Math.random().toString(36).slice(2)}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'convites', filter: `freelancer_id=eq.${freelancerId}` }, (p) => aoReceber(p.new as Convite))
+    .subscribe();
+  return () => {
+    supabase.removeChannel(canal);
+  };
+}
+
+/* ================= Certificados e experiência ================= */
+export type Certificado = { id: string; freelancer_id: string; nome: string; instituicao: string | null; ano: number | null; criado_em: string };
+export type Experiencia = { id: string; freelancer_id: string; local: string; funcao: string; periodo: string | null; descricao: string | null; criado_em: string };
+export async function certificadosDe(freelancerId: string) {
+  return ok<Certificado[]>(await supabase.from('certificados').select('*').eq('freelancer_id', freelancerId).order('ano', { ascending: false, nullsFirst: false }));
+}
+export async function experienciasDe(freelancerId: string) {
+  return ok<Experiencia[]>(await supabase.from('experiencias').select('*').eq('freelancer_id', freelancerId).order('criado_em', { ascending: false }));
+}
+export async function salvarCertificado(c: { id?: string; nome: string; instituicao: string; ano: number | null }) {
+  const campos = { nome: c.nome.trim(), instituicao: c.instituicao.trim() || null, ano: c.ano };
+  if (c.id) ok(await supabase.from('certificados').update(campos).eq('id', c.id));
+  else ok(await supabase.from('certificados').insert(campos));
+}
+export async function salvarExperiencia(e: { id?: string; local: string; funcao: string; periodo: string; descricao: string }) {
+  const campos = { local: e.local.trim(), funcao: e.funcao.trim(), periodo: e.periodo.trim() || null, descricao: e.descricao.trim() || null };
+  if (e.id) ok(await supabase.from('experiencias').update(campos).eq('id', e.id));
+  else ok(await supabase.from('experiencias').insert(campos));
+}
+export async function apagarCertificado(id: string) {
+  ok(await supabase.from('certificados').delete().eq('id', id));
+}
+export async function apagarExperiencia(id: string) {
+  ok(await supabase.from('experiencias').delete().eq('id', id));
+}
+
+/* ================= Verificação de identidade ================= */
+export type Verificacao = { id: string; perfil_id: string; status: 'pendente' | 'aprovada' | 'recusada'; motivo: string | null; criado_em: string; revisado_em: string | null };
+export async function minhaVerificacao(perfilId: string) {
+  return ok<Verificacao | null>(
+    await supabase.from('verificacoes').select('*').eq('perfil_id', perfilId).order('criado_em', { ascending: false }).limit(1).maybeSingle()
+  );
+}
+/** Envia selfie + documento (JPEG) para o cofre privado e abre o pedido */
+export async function pedirVerificacao(perfilId: string, selfie: ArrayBuffer, documento: ArrayBuffer) {
+  for (const [nome, dados] of [['selfie', selfie], ['documento', documento]] as const) {
+    const { error } = await supabase.storage.from('verificacoes').upload(`${perfilId}/${nome}.jpg`, dados, { contentType: 'image/jpeg', upsert: true });
+    if (error) throw new Error('Não foi possível enviar as fotos. Tente de novo.');
+  }
+  const { error } = await supabase.from('verificacoes').insert({ perfil_id: perfilId });
+  if (error) throw new Error(error.code === '23505' ? 'Você já tem um pedido em análise.' : 'Não foi possível enviar o pedido.');
+}
+
+/* ================= Denúncias e bloqueios ================= */
+export const MOTIVOS_DENUNCIA: { id: string; nome: string }[] = [
+  { id: 'golpe', nome: 'Golpe ou fraude' },
+  { id: 'nao_pagou', nome: 'Não pagou o combinado' },
+  { id: 'assedio', nome: 'Assédio ou discriminação' },
+  { id: 'falso', nome: 'Perfil ou vaga falsa' },
+  { id: 'conduta', nome: 'Conduta inadequada no trabalho' },
+  { id: 'spam', nome: 'Spam ou propaganda' },
+  { id: 'outro', nome: 'Outro motivo' },
+];
+export async function denunciar(d: { alvo_id: string; motivo: string; detalhes: string; vaga_id?: string | null }) {
+  const { error } = await supabase.from('denuncias').insert({ alvo_id: d.alvo_id, motivo: d.motivo, detalhes: d.detalhes.trim() || null, vaga_id: d.vaga_id ?? null });
+  if (error) throw new Error(error.message.includes('row-level') ? 'Limite de denúncias atingido hoje. Tente amanhã.' : 'Não foi possível enviar a denúncia.');
+}
+export async function idsBloqueados(autorId: string) {
+  return new Set(ok<{ alvo_id: string }[]>(await supabase.from('bloqueios').select('alvo_id').eq('autor_id', autorId)).map((x) => x.alvo_id));
+}
+export async function bloquear(autorId: string, alvoId: string, bloquear: boolean) {
+  if (bloquear) {
+    const { error } = await supabase.from('bloqueios').insert({ autor_id: autorId, alvo_id: alvoId });
+    if (error && error.code !== '23505') throw new Error('Não foi possível bloquear agora.');
+  } else ok(await supabase.from('bloqueios').delete().eq('autor_id', autorId).eq('alvo_id', alvoId));
+}
+export async function listarBloqueados(autorId: string) {
+  return ok<{ alvo_id: string; criado_em: string; alvo: PerfilResumo & { tipo: TipoConta } }[]>(
+    await supabase
+      .from('bloqueios')
+      .select('alvo_id, criado_em, alvo:perfis!bloqueios_alvo_id_fkey(id, nome, titulo, cidade, uf, verificado, tipo, foto_v)')
+      .eq('autor_id', autorId)
+      .order('criado_em', { ascending: false })
+  );
+}
+/** A conversa está bloqueada (por qualquer um dos dois)? */
+export async function conversaBloqueada(eu: string, outro: string) {
+  const { data } = await supabase.rpc('bloqueado', { p_a: eu, p_b: outro });
+  return !!data;
+}
+
+/* ================= Painel do Vora (moderação) ================= */
+export async function souAdmin() {
+  const { data } = await supabase.rpc('eh_admin');
+  return !!data;
+}
+export type PainelAdmin = Record<
+  'freelancers' | 'estabelecimentos' | 'novos_7d' | 'vagas_ativas' | 'candidaturas_30d' | 'contratacoes_30d' | 'faltas_30d' | 'denuncias_abertas' | 'verificacoes_pendentes' | 'suspensos',
+  number
+>;
+export async function painelAdmin() {
+  return ok<PainelAdmin>(await supabase.rpc('painel_admin'));
+}
+export type DenunciaAdmin = {
+  id: string;
+  motivo: string;
+  detalhes: string | null;
+  status: string;
+  criado_em: string;
+  autor_id: string;
+  autor_nome: string;
+  alvo_id: string;
+  alvo_nome: string;
+  alvo_tipo: TipoConta;
+  alvo_suspenso: boolean;
+  alvo_denuncias: number;
+  vaga_titulo: string | null;
+};
+export async function adminDenuncias(status: 'aberta' | 'resolvida' | 'descartada' = 'aberta') {
+  return ok<DenunciaAdmin[]>(await supabase.rpc('admin_denuncias', { p_status: status }));
+}
+export async function resolverDenuncia(id: string, status: 'resolvida' | 'descartada' | 'aberta') {
+  ok(await supabase.rpc('resolver_denuncia', { p_id: id, p_status: status }));
+}
+export async function suspenderConta(perfilId: string, suspender: boolean) {
+  ok(await supabase.rpc('suspender_conta', { p_perfil: perfilId, p_suspender: suspender }));
+}
+export type VerificacaoAdmin = { id: string; perfil_id: string; nome: string; tipo: TipoConta; criado_em: string };
+export async function adminVerificacoes() {
+  return ok<VerificacaoAdmin[]>(await supabase.rpc('admin_verificacoes'));
+}
+/** Links temporários (5 min) para a moderação ver as fotos */
+export async function fotosVerificacao(perfilId: string) {
+  const { data } = await supabase.storage.from('verificacoes').createSignedUrls([`${perfilId}/selfie.jpg`, `${perfilId}/documento.jpg`], 300);
+  return { selfie: data?.[0]?.signedUrl ?? null, documento: data?.[1]?.signedUrl ?? null };
+}
+/** Aprova/recusa e apaga as fotos (só guardamos o resultado — LGPD) */
+export async function revisarVerificacao(v: { id: string; perfil_id: string }, aprovar: boolean, motivo?: string) {
+  ok(await supabase.rpc('revisar_verificacao', { p_id: v.id, p_aprovar: aprovar, p_motivo: motivo ?? null }));
+  await supabase.storage.from('verificacoes').remove([`${v.perfil_id}/selfie.jpg`, `${v.perfil_id}/documento.jpg`]);
+}
+
+/* ================= Relatório do estabelecimento ================= */
+export type LinhaRelatorio = Candidatura & {
+  vaga: Pick<Vaga, 'id' | 'titulo' | 'valor_min' | 'valor_max' | 'periodo' | 'inicio_em' | 'criado_em' | 'area'>;
+};
+/** Contratações (inclui faltas e cancelamentos) de todas as vagas do estabelecimento */
+export async function contratacoesDoEstabelecimento(empresaId: string) {
+  return ok<LinhaRelatorio[]>(
+    await supabase
+      .from('candidaturas')
+      .select(`*, ${FREELA_EMBED}, vaga:vagas!inner(id, titulo, valor_min, valor_max, periodo, inicio_em, criado_em, area, empresa_id)`)
+      .eq('vaga.empresa_id', empresaId)
+      .in('status', ['contratado', 'falta', 'cancelado_freela', 'cancelado_empresa'])
+      .order('criado_em', { ascending: false })
+      .limit(1000)
+  );
+}
+/** Quem é a outra pessoa da conversa */
+export async function outroDaConversa(conversaId: string, eu: string) {
+  const c = ok<{ a: string; b: string } | null>(await supabase.from('conversas').select('a, b').eq('id', conversaId).maybeSingle());
+  return c ? (c.a === eu ? c.b : c.a) : null;
 }

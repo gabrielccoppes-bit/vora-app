@@ -5,7 +5,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
-import { ToastProvider } from '@/components/ui';
+import { Botao, T, Tela, ToastProvider } from '@/components/ui';
+import { sair } from '@/lib/api';
 import { LocalizacaoProvider } from '@/lib/localizacao';
 import { SessaoProvider, useSessao } from '@/lib/sessao';
 import { C } from '@/theme';
@@ -30,13 +31,14 @@ export default function Raiz() {
 }
 
 function Navegacao({ pronto }: { pronto: boolean }) {
-  const { sessao, carregando } = useSessao();
+  const { sessao, perfil, carregando } = useSessao();
 
   useEffect(() => {
     if (pronto && !carregando) SplashScreen.hideAsync();
   }, [pronto, carregando]);
 
   if (!pronto || carregando) return null;
+  if (perfil?.suspenso) return <ContaSuspensa />;
 
   return (
     <>
@@ -53,6 +55,14 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="avaliar" />
           <Stack.Screen name="estabelecimento/[id]" />
           <Stack.Screen name="editar-perfil" />
+          <Stack.Screen name="disponibilidade" />
+          <Stack.Screen name="curriculo" />
+          <Stack.Screen name="convites" />
+          <Stack.Screen name="favoritos" />
+          <Stack.Screen name="verificacao" />
+          <Stack.Screen name="bloqueados" />
+          <Stack.Screen name="relatorio" />
+          <Stack.Screen name="admin" />
         </Stack.Protected>
         {/* Boas-vindas, login e cadastro */}
         <Stack.Protected guard={!sessao}>
@@ -67,5 +77,19 @@ function Navegacao({ pronto }: { pronto: boolean }) {
         <Stack.Screen name="nova-senha" options={{ animation: 'fade' }} />
       </Stack>
     </>
+  );
+}
+
+/** Conta suspensa pela moderação */
+function ContaSuspensa() {
+  return (
+    <Tela>
+      <StatusBar style="light" />
+      <T style={{ fontSize: 24, fontFamily: 'Sora_600SemiBold', marginTop: 80, paddingHorizontal: 24 }}>Conta suspensa</T>
+      <T style={{ color: C.muted, lineHeight: 22, marginTop: 10, paddingHorizontal: 24 }}>
+        Sua conta foi suspensa pela equipe do Vora depois de denúncias. Se acha que foi um engano, escreva para o suporte do Vora explicando o que aconteceu.
+      </T>
+      <Botao titulo="Sair" onPress={() => sair()} estilo={{ marginTop: 28, marginHorizontal: 24 }} />
+    </Tela>
   );
 }

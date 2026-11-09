@@ -35,6 +35,7 @@ const P = {
   pessoas: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.3 0 4 1.2 4.7 3.8"/>',
   baixo: '<path d="m6 9 6 6 6-6"/>',
   raio: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  opcoes: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
 } as const;
 
 export type NomeIcone = keyof typeof P;
