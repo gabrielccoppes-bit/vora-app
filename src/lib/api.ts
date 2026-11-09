@@ -115,6 +115,11 @@ export type Candidatura = {
   motivo: string | null;
   ultima_hora: boolean;
   alterado_em: string | null;
+  checkin_em?: string | null;
+  checkout_em?: string | null;
+  checkin_dist_m?: number | null;
+  checkout_dist_m?: number | null;
+  presenca_por?: 'gps' | 'estabelecimento' | null;
   criado_em: string;
   freelancer?: PerfilResumo;
   avaliacao?: Pick<Avaliacao, 'id' | 'nota' | 'tags' | 'comentario'> | null;
@@ -479,14 +484,14 @@ export async function avaliacoesDoEstabelecimento(empresaId: string) {
 export async function vagasDoEstabelecimento(empresaId: string) {
   return ok<Vaga[]>(await supabase.from('vagas').select(VAGA_SEL).eq('empresa_id', empresaId).eq('ativa', true).order('criado_em', { ascending: false }));
 }
-type VagaComEmpresa = { id: string; titulo: string; empresa_id: string; empresa: PerfilResumo };
+type VagaComEmpresa = { id: string; titulo: string; empresa_id: string; inicio_em: string | null; empresa: PerfilResumo };
 /** Trabalhos em que o freelancer foi contratado (para avaliar o estabelecimento) */
 export async function minhasContratacoes(freelancerId: string) {
   return ok<(Candidatura & { vaga: VagaComEmpresa })[]>(
     await supabase
       .from('candidaturas')
       .select(
-        '*, vaga:vagas(id, titulo, empresa_id, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v)), avaliacao:avaliacoes(id, nota, tags, comentario)'
+        '*, vaga:vagas(id, titulo, empresa_id, inicio_em, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v)), avaliacao:avaliacoes(id, nota, tags, comentario)'
       )
       .eq('avaliacao.direcao', 'freela_para_empresa')
       .eq('freelancer_id', freelancerId)
@@ -830,3 +835,90 @@ export async function outroDaConversa(conversaId: string, eu: string) {
   const c = ok<{ a: string; b: string } | null>(await supabase.from('conversas').select('a, b').eq('id', conversaId).maybeSingle());
   return c ? (c.a === eu ? c.b : c.a) : null;
 }
+
+/* ================= Central de avisos ================= */
+export type Notificacao = { id: string; tipo: string; titulo: string; corpo: string; rota: string | null; lida: boolean; criado_em: string };
+export async function listarNotificacoes(usuarioId: string) {
+  return ok<Notificacao[]>(await supabase.from('notificacoes').select('id, tipo, titulo, corpo, rota, lida, criado_em').eq('usuario_id', usuarioId).order('criado_em', { ascending: false }).limit(100));
+}
+export async function naoLidas(usuarioId: string) {
+  const { count } = await supabase.from('notificacoes').select('id', { count: 'exact', head: true }).eq('usuario_id', usuarioId).eq('lida', false);
+  return count ?? 0;
+}
+export async function marcarLidas(usuarioId: string, id?: string) {
+  let q = supabase.from('notificacoes').update({ lida: true }).eq('usuario_id', usuarioId).eq('lida', false);
+  if (id) q = q.eq('id', id);
+  ok(await q);
+}
+export async function apagarNotificacao(id: string) {
+  ok(await supabase.from('notificacoes').delete().eq('id', id));
+}
+/** Aviso novo em tempo real (app aberto) */
+export function ouvirNotificacoes(usuarioId: string, aoReceber: (n: Notificacao) => void) {
+  const canal = supabase
+    .channel(`avisos-${usuarioId}-${Math.random().toString(36).slice(2)}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificacoes', filter: `usuario_id=eq.${usuarioId}` }, (p) => aoReceber(p.new as Notificacao))
+    .subscribe();
+  return () => {
+    supabase.removeChannel(canal);
+  };
+}
+
+/* ================= Notificações do navegador (Web Push) ================= */
+const FUNCOES = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1`;
+const baseSite = () => (typeof window !== 'undefined' && window.location.pathname.startsWith('/vora-app') ? '/vora-app' : '');
+export function pushSuportado() {
+  return Platform.OS === 'web' && typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+export type EstadoPush = 'indisponivel' | 'ativo' | 'inativo' | 'bloqueado';
+export async function estadoPush(): Promise<EstadoPush> {
+  if (!pushSuportado()) return 'indisponivel';
+  if (Notification.permission === 'denied') return 'bloqueado';
+  const reg = await navigator.serviceWorker.getRegistration(`${baseSite()}/`);
+  const sub = await reg?.pushManager.getSubscription();
+  return sub && Notification.permission === 'granted' ? 'ativo' : 'inativo';
+}
+function chaveParaBytes(b64: string) {
+  const s = b64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64.length + 3) % 4);
+  return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+}
+/** Pede permissão, inscreve este navegador e guarda a inscrição */
+export async function ativarPush(usuarioId: string) {
+  if (!pushSuportado()) throw new Error('Este navegador não aceita notificações.');
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') throw new Error('Permissão negada. Libere as notificações nas configurações do navegador.');
+  const reg = await navigator.serviceWorker.register(`${baseSite()}/sw.js`, { scope: `${baseSite()}/` });
+  await navigator.serviceWorker.ready;
+  const r = await fetch(`${FUNCOES}/enviar-push`);
+  const { publica } = (await r.json()) as { publica: string };
+  const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveParaBytes(publica) }));
+  const j = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+  const { error } = await supabase.from('push_inscricoes').upsert({ usuario_id: usuarioId, tipo: 'web', endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, { onConflict: 'endpoint' });
+  if (error) throw new Error('Não foi possível ativar agora.');
+}
+export async function desativarPush() {
+  if (!pushSuportado()) return;
+  const reg = await navigator.serviceWorker.getRegistration(`${baseSite()}/`);
+  const sub = await reg?.pushManager.getSubscription();
+  if (sub) {
+    await supabase.from('push_inscricoes').delete().eq('endpoint', sub.endpoint);
+    await sub.unsubscribe();
+  }
+}
+
+/* ================= Check-in / check-out ================= */
+export async function registrarPresenca(candidaturaId: string, tipo: 'entrada' | 'saida', ponto: { lat: number; lng: number } | null) {
+  const { data, error } = await supabase.rpc('registrar_presenca', { p_candidatura: candidaturaId, p_tipo: tipo, p_lat: ponto?.lat ?? null, p_lng: ponto?.lng ?? null });
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível registrar agora.');
+  return data as { ok: boolean; distancia_m: number | null };
+}
+export async function confirmarPresenca(candidaturaId: string, tipo: 'entrada' | 'saida') {
+  const { error } = await supabase.rpc('confirmar_presenca', { p_candidatura: candidaturaId, p_tipo: tipo });
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível confirmar agora.');
+}
+/** "6h12" entre duas datas */
+export function duracao(inicio: string, fim: string) {
+  const min = Math.max(0, Math.round((new Date(fim).getTime() - new Date(inicio).getTime()) / 60000));
+  return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+}
+export const horaCurta = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });

@@ -171,6 +171,9 @@ export default function Perfil() {
       </Grupo>
 
       <Grupo titulo="Conta">
+        <Item icone="sino" onPress={() => router.push('/notificacoes')} sub="Histórico e notificações do navegador">
+          Avisos
+        </Item>
         <Item icone="editar" onPress={() => router.push('/editar-perfil')} sub={empresa ? 'Logo, nome, endereço e contato' : 'Foto, dados, endereço e contato'}>
           Editar perfil
         </Item>

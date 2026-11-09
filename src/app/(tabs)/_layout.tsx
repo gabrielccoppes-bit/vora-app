@@ -6,8 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icone, type NomeIcone } from '@/components/icone';
 import { T } from '@/components/ui';
-import { buscarVaga, faixaSalarial, ouvirConvites, ouvirVagasUrgentes, quandoComeca } from '@/lib/api';
-import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
+import { ouvirNotificacoes } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { C } from '@/theme';
 
@@ -57,49 +56,28 @@ function AlertaUrgente() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const id = perfil?.id;
-  const tipo = perfil?.tipo;
-  const cidade = perfil?.cidade ?? '';
-  const { ponto } = useLocalizacao();
-  const pontoRef = useRef(ponto);
-  pontoRef.current = ponto; // lido na hora do aviso, sem refazer a inscrição
 
   const mostrar = (a: Aviso) => {
     setAviso(a);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setAviso(null), 12000);
+    timer.current = setTimeout(() => setAviso(null), 10000);
   };
 
+  // todo aviso novo (candidatura, convite, contratação, vaga urgente...) aparece no topo.
+  // Mensagens não: quem está no chat já vê a conversa.
   useEffect(() => {
-    if (tipo !== 'freelancer') return;
-    return ouvirVagasUrgentes(async (vagaId) => {
-      const v = await buscarVaga(vagaId).catch(() => null);
-      if (!v) return;
-      const km = distanciaAte(pontoRef.current, v.empresa);
-      const perto = km != null ? km <= 30 : v.empresa?.cidade?.toLowerCase() === cidade.toLowerCase();
-      if (!perto) return;
+    if (!id) return;
+    return ouvirNotificacoes(id, (n) => {
+      if (n.tipo === 'mensagem') return;
       mostrar({
-        rotulo: 'VAGA URGENTE PERTO DE VOCÊ',
-        titulo: `${v.titulo} · ${v.empresa?.nome ?? ''}`,
-        linha: `${v.inicio_em ? quandoComeca(v.inicio_em) : ''} · ${faixaSalarial(v)}`,
-        rota: `/vaga/${v.id}`,
-        icone: 'raio',
+        rotulo: n.tipo === 'urgente' ? 'VAGA URGENTE NA SUA CIDADE' : n.tipo === 'convite' ? 'VOCÊ RECEBEU UM CONVITE' : 'NOVO AVISO',
+        titulo: n.titulo.replace(/^⚡ Vaga urgente: /, ''),
+        linha: n.corpo,
+        rota: n.rota ?? '/notificacoes',
+        icone: n.tipo === 'urgente' ? 'raio' : n.tipo === 'convite' ? 'enviar' : 'sino',
       });
     });
-  }, [tipo, cidade]);
-
-  useEffect(() => {
-    if (tipo !== 'freelancer' || !id) return;
-    return ouvirConvites(id, async (c) => {
-      const v = await buscarVaga(c.vaga_id).catch(() => null);
-      mostrar({
-        rotulo: 'VOCÊ RECEBEU UM CONVITE',
-        titulo: v ? `${v.empresa?.nome ?? 'Estabelecimento'} quer você` : 'Novo convite de trabalho',
-        linha: v ? `${v.titulo}${v.inicio_em ? ' · ' + quandoComeca(v.inicio_em) : ''}` : 'Toque para ver',
-        rota: '/convites',
-        icone: 'enviar',
-      });
-    });
-  }, [tipo, id]);
+  }, [id]);
 
   if (!aviso) return null;
   return (

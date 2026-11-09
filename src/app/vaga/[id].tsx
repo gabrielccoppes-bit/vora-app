@@ -1,3 +1,4 @@
+import * as Location from 'expo-location';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
@@ -13,7 +14,11 @@ import {
   buscarVaga,
   candidatar,
   candidatosDaVaga,
+  confirmarPresenca,
   convitesDaVaga,
+  duracao,
+  horaCurta,
+  registrarPresenca,
   definirStatus,
   idsBloqueados,
   listarFavoritos,
@@ -55,6 +60,7 @@ export default function DetalheVaga() {
   const [convidar, setConvidar] = useState<{ id: string; nome: string } | null>(null);
   const [menu, setMenu] = useState(false);
   const [bloqueado, setBloqueado] = useState(false);
+  const [presenca, setPresenca] = useState<string | null>(null); // id em andamento
   const [avaliar, setAvaliar] = useState<AlvoAvaliacao | null>(null);
   const [decidindo, setDecidindo] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState('');
@@ -187,6 +193,42 @@ export default function DetalheVaga() {
     }
   }
 
+  /** Freelancer: check-in/check-out com o GPS do celular */
+  async function marcarPresenca(tipo: 'entrada' | 'saida') {
+    if (!minha || !vaga || !perfil) return;
+    setPresenca(minha.id);
+    try {
+      let ponto: { lat: number; lng: number } | null = null;
+      if (vaga.empresa?.lat != null) {
+        const perm = await Location.requestForegroundPermissionsAsync();
+        if (!perm.granted) throw new Error('Permita o acesso à localização para registrar sua presença no local.');
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        ponto = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      }
+      await registrarPresenca(minha.id, tipo, ponto);
+      setMinha(await minhaCandidatura(vaga.id, perfil.id));
+      toast(tipo === 'entrada' ? 'Check-in feito! Bom trabalho.' : 'Saída registrada. Obrigado!');
+    } catch (e) {
+      toast((e as Error).message || 'Não foi possível registrar agora.');
+    } finally {
+      setPresenca(null);
+    }
+  }
+
+  /** Contratante: confirma chegada/saída manualmente */
+  async function confirmar(c: Candidatura, tipo: 'entrada' | 'saida') {
+    setPresenca(c.id);
+    try {
+      await confirmarPresenca(c.id, tipo);
+      await recarregarCandidatos();
+      toast(tipo === 'entrada' ? 'Chegada confirmada.' : 'Saída confirmada.');
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setPresenca(null);
+    }
+  }
+
   async function abrirFavoritos() {
     if (!perfil) return;
     setFolha('favoritos');
@@ -315,6 +357,23 @@ export default function DetalheVaga() {
                     <Icone nome="seta" tamanho={16} cor="#7A6A61" />
                   </Pressable>
                   {c.mensagem ? <T style={{ color: C.ink2, fontSize: 13, marginTop: 8, lineHeight: 18 }}>“{c.mensagem}”</T> : null}
+                  {c.status === 'contratado' && (c.checkin_em || !vaga.inicio_em || new Date(vaga.inicio_em).getTime() - 2 * 3600e3 <= Date.now()) ? (
+                    <View style={st.presenca}>
+                      <Icone nome="local" tamanho={16} cor={c.checkin_em ? '#1F7A4C' : '#7A6A61'} />
+                      <T style={{ color: C.ink2, fontSize: 13, flex: 1 }}>
+                        {c.checkin_em
+                          ? `Chegou ${horaCurta(c.checkin_em)}${c.presenca_por === 'estabelecimento' ? ' (confirmado por você)' : c.checkin_dist_m != null ? ` · a ${c.checkin_dist_m} m` : ''}${
+                              c.checkout_em ? ` · saiu ${horaCurta(c.checkout_em)} · ${duracao(c.checkin_em, c.checkout_em)}` : ' · trabalhando'
+                            }`
+                          : 'Ainda não fez check-in'}
+                      </T>
+                      {!c.checkin_em || !c.checkout_em ? (
+                        <Pressable style={st.miniClaro} disabled={presenca === c.id} onPress={() => confirmar(c, c.checkin_em ? 'saida' : 'entrada')}>
+                          <T style={{ fontSize: 12.5, fontFamily: F.interSemi, color: C.ink }}>{presenca === c.id ? '...' : c.checkin_em ? 'Confirmar saída' : 'Confirmar chegada'}</T>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null}
                   <View style={st.candAcoes}>
                     {c.status === 'pendente' ? (
                       <>
@@ -347,14 +406,16 @@ export default function DetalheVaga() {
                           }>
                           <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.onOrange }}>{c.avaliacao ? `★ ${c.avaliacao.nota} · Editar` : 'Avaliar'}</T>
                         </Pressable>
-                        {!vaga.inicio_em || new Date(vaga.inicio_em).getTime() <= Date.now() ? (
+                        {!c.checkin_em && (!vaga.inicio_em || new Date(vaga.inicio_em).getTime() <= Date.now()) ? (
                           <Pressable style={st.miniClaro} onPress={() => (setMotivo(''), setGerir({ c, acao: 'falta' }))}>
                             <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.ink }}>Faltou</T>
                           </Pressable>
                         ) : null}
-                        <Pressable style={st.miniClaro} onPress={() => (setMotivo(''), setGerir({ c, acao: 'cancelar' }))}>
-                          <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.ink }}>Cancelar</T>
-                        </Pressable>
+                        {!c.checkin_em ? (
+                          <Pressable style={st.miniClaro} onPress={() => (setMotivo(''), setGerir({ c, acao: 'cancelar' }))}>
+                            <T style={{ fontSize: 13, fontFamily: F.interSemi, color: C.ink }}>Cancelar</T>
+                          </Pressable>
+                        ) : null}
                       </>
                     ) : c.status === 'falta' ? (
                       <>
@@ -430,7 +491,40 @@ export default function DetalheVaga() {
           {minha?.status === 'contratado' ? (
             <>
               <Botao titulo="Você foi contratado(a)! 🎉" icone="check" variante="feito" desativado />
-              <Botao titulo="Não vou poder ir" variante="fantasma" onPress={() => (setMotivo(''), setFolha('desistir'))} />
+              {(() => {
+                const ini = vaga.inicio_em ? new Date(vaga.inicio_em).getTime() : null;
+                const abre = ini === null || Date.now() >= ini - 2 * 3600e3;
+                const fechou = ini !== null && Date.now() > ini + 12 * 3600e3 && !minha.checkin_em;
+                return (
+                  <View style={st.turno}>
+                    <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 15.5 }}>
+                      {minha.checkout_em ? 'Turno concluído ✓' : minha.checkin_em ? 'Turno em andamento' : 'Presença no turno'}
+                    </T>
+                    <T style={{ color: '#7A6A61', fontSize: 13, marginTop: 4, lineHeight: 18 }}>
+                      {minha.checkout_em && minha.checkin_em
+                        ? `Entrada ${horaCurta(minha.checkin_em)} · saída ${horaCurta(minha.checkout_em)} · ${duracao(minha.checkin_em, minha.checkout_em)}`
+                        : minha.checkin_em
+                          ? `Check-in às ${horaCurta(minha.checkin_em)}. Registre a saída quando terminar.`
+                          : fechou
+                            ? 'O prazo para check-in deste turno passou.'
+                            : abre
+                              ? 'Ao chegar no local, faça o check-in. Usamos o GPS só para conferir que você está lá, sem guardar sua posição.'
+                              : `O check-in abre 2 horas antes do início (${quandoComeca(vaga.inicio_em!)}).`}
+                    </T>
+                    {!minha.checkout_em && !fechou && abre ? (
+                      <Botao
+                        titulo={minha.checkin_em ? 'Encerrar turno' : 'Cheguei · fazer check-in'}
+                        icone="local"
+                        variante={minha.checkin_em ? 'contornoEscuro' : 'pri'}
+                        carregando={presenca === minha.id}
+                        onPress={() => marcarPresenca(minha.checkin_em ? 'saida' : 'entrada')}
+                        estilo={{ marginTop: 12 }}
+                      />
+                    ) : null}
+                  </View>
+                );
+              })()}
+              {!minha.checkin_em ? <Botao titulo="Não vou poder ir" variante="fantasma" onPress={() => (setMotivo(''), setFolha('desistir'))} /> : null}
               <Botao
                 titulo={minha.avaliacao ? `Sua avaliação: ★ ${minha.avaliacao.nota} · Editar` : 'Avaliar este estabelecimento'}
                 icone="estrela"
@@ -599,4 +693,6 @@ const st = StyleSheet.create({
   cand: { backgroundColor: '#fff', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#ECDCCF' },
   mini: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: C.ink },
   acoes: { paddingHorizontal: 22, paddingTop: 22, gap: 12 },
+  presenca: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0E3D8' },
+  turno: { backgroundColor: '#fff', borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: C.orange },
 });

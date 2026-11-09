@@ -42,9 +42,18 @@ export default function Relatorio() {
     let min = 0;
     let max = 0;
     let porHora = 0;
+    let minutos = 0;
     for (const l of trabalhou) {
-      if (l.vaga.periodo === 'hora') porHora++;
-      else {
+      const m = l.checkin_em && l.checkout_em ? Math.max(0, (new Date(l.checkout_em).getTime() - new Date(l.checkin_em).getTime()) / 60000) : null;
+      if (m !== null) minutos += m;
+      if (l.vaga.periodo === 'hora') {
+        if (m === null) porHora++;
+        else {
+          // por hora: usa as horas registradas no check-in/check-out
+          min += Math.round((l.vaga.valor_min * m) / 60);
+          max += Math.round(((l.vaga.valor_max ?? l.vaga.valor_min) * m) / 60);
+        }
+      } else {
         min += l.vaga.valor_min;
         max += l.vaga.valor_max ?? l.vaga.valor_min;
       }
@@ -57,17 +66,20 @@ export default function Relatorio() {
       min,
       max,
       porHora,
+      horas: `${Math.floor(minutos / 60)}h${String(Math.round(minutos % 60)).padStart(2, '0')}`,
     };
   }, [doMes]);
 
   function exportar() {
-    const cab = 'Data;Vaga;Freelancer;Situação;Valor anunciado';
+    const cab = 'Data;Vaga;Freelancer;Situação;Entrada;Saída;Valor anunciado';
     const corpo = doMes.map((l) =>
       [
         dataDoTurno(l).toLocaleDateString('pt-BR'),
         l.vaga.titulo,
         l.freelancer?.nome ?? '',
         STATUS[l.status] ?? l.status,
+        l.checkin_em ? new Date(l.checkin_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+        l.checkout_em ? new Date(l.checkout_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
         `${l.vaga.valor_min}${l.vaga.valor_max ? '-' + l.vaga.valor_max : ''}${PER[l.vaga.periodo]}`,
       ]
         .map((c) => `"${String(c).replace(/"/g, '""')}"`)
@@ -99,10 +111,13 @@ export default function Relatorio() {
               <Numero valor={String(r.faltas)} rotulo="faltas" alerta={r.faltas > 0} />
               <Numero valor={String(r.cancel)} rotulo="cancelamentos" alerta={r.cancel > 0} />
             </View>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <Numero valor={r.horas} rotulo="horas registradas (check-in/out)" />
+            </View>
             <View style={{ marginTop: 10, padding: 16, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: C.stroke }}>
               <T style={{ color: C.muted, fontSize: 13 }}>Valor previsto (pelas vagas)</T>
               <T style={{ fontFamily: F.soraSemi, fontSize: 24, marginTop: 4 }}>{r.min === r.max ? reais(r.min) : `${reais(r.min)} – ${reais(r.max)}`}</T>
-              {r.porHora ? <T style={{ color: C.muted, fontSize: 12.5, marginTop: 4 }}>+ {r.porHora} turno(s) pagos por hora (depende das horas trabalhadas)</T> : null}
+              {r.porHora ? <T style={{ color: C.muted, fontSize: 12.5, marginTop: 4 }}>+ {r.porHora} turno(s) por hora sem check-in/check-out registrado</T> : null}
               <T style={{ color: C.muted2, fontSize: 12, marginTop: 8, lineHeight: 17 }}>Estimativa a partir dos valores anunciados. Quando o pagamento pelo app estiver ativo, aqui aparecem os valores pagos.</T>
             </View>
 

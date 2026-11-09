@@ -1,18 +1,16 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
-import { Botao, BotaoIcone, Brilho, Carregando, Chip, Folha, T, Vazio } from '@/components/ui';
-import { alternarSalvo, candidaturasRecebidas, contratadosDaEmpresa, convitesPendentes, disponibilidadeDe, idsFavoritos, minhasContratacoes, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
+import { Botao, BotaoIcone, Brilho, Carregando, Chip, T, Vazio } from '@/components/ui';
+import { alternarSalvo, contratadosDaEmpresa, convitesPendentes, disponibilidadeDe, horaCurta, idsFavoritos, minhasContratacoes, naoLidas, ouvirNotificacoes, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
 import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
-import { primeiroNome, tempoRelativo } from '@/lib/validacao';
+import { primeiroNome } from '@/lib/validacao';
 import { C, CATEGORIAS, F } from '@/theme';
-
-type Aviso = { texto: string; em: string; vaga: string };
 
 export default function Inicio() {
   const { perfil } = useSessao();
@@ -30,19 +28,19 @@ export default function Inicio() {
   const [urgentes, setUrgentes] = useState<Vaga[]>([]);
   const [freelas, setFreelas] = useState<Servico[] | null>(null);
   const [salvos, setSalvos] = useState<Set<string>>(new Set());
-  const [avisos, setAvisos] = useState<Aviso[]>([]);
-  const [verAvisos, setVerAvisos] = useState(false);
+  const [nAvisos, setNAvisos] = useState(0);
+  const [turno, setTurno] = useState<{ vagaId: string; titulo: string; empresa: string; inicio: string; emAndamento: boolean } | null>(null);
   const [atualizando, setAtualizando] = useState(false);
   const empresa = perfil?.tipo === 'empresa';
 
   const carregar = useCallback(async () => {
     if (!perfil) return;
+    naoLidas(perfil.id).then(setNAvisos).catch(() => {});
     try {
       // tudo em paralelo: a tela não espera uma consulta terminar para começar a próxima
       if (empresa) {
-        const [s, cands, contratados, favs] = await Promise.all([
+        const [s, contratados, favs] = await Promise.all([
           listarServicos({ area, limite: 6 }),
-          candidaturasRecebidas(perfil.id),
           contratadosDaEmpresa(perfil.id),
           idsFavoritos(perfil.id).catch(() => new Set<string>()),
         ]);
@@ -50,7 +48,6 @@ export default function Inicio() {
         setNFavoritos(favs.size);
         setFreelas(s.filter((x) => x.freelancer_id !== perfil.id));
         setVagas([]);
-        setAvisos(cands.map((c) => ({ texto: `${c.freelancer?.nome ?? 'Alguém'} se candidatou a ${c.vaga.titulo}`, em: c.criado_em, vaga: c.vaga.id })));
       } else {
         const [v, urg, sv, prox, contratacoes, nConv, agenda] = await Promise.all([
           listarVagas({ area, limite: 8 }),
@@ -64,6 +61,15 @@ export default function Inicio() {
         setConvites(nConv);
         setSemAgenda(agenda !== null && agenda.length === 0);
         setParaAvaliar(contratacoes.filter((c) => !c.avaliacao).length);
+        // turno de hoje: de 3h antes até 12h depois do início, enquanto não encerrou
+        const agora = Date.now();
+        const t = contratacoes.find((c) => {
+          const ini = c.vaga?.inicio_em ? new Date(c.vaga.inicio_em).getTime() : null;
+          return ini !== null && !c.checkout_em && agora > ini - 3 * 3600e3 && agora < ini + 12 * 3600e3;
+        });
+        setTurno(
+          t ? { vagaId: t.vaga.id, titulo: t.vaga.titulo, empresa: t.vaga.empresa?.nome ?? '', inicio: t.vaga.inicio_em!, emAndamento: !!t.checkin_em } : null
+        );
         const daArea = (x: Vaga) => area === 'Todas' || x.area === area;
         setVagas(v.filter((x) => x.empresa_id !== perfil.id));
         // urgentes: até 30 km de onde a pessoa está; sem localização, mesma cidade
@@ -76,12 +82,6 @@ export default function Inicio() {
         );
         setProximas(prox ? prox.filter(daArea) : null);
         setSalvos(sv);
-        setAvisos(
-          v
-            .filter((x) => x.area === perfil.area)
-            .slice(0, 4)
-            .map((x) => ({ texto: `Nova vaga em ${x.area}: ${x.titulo} — ${x.empresa?.nome}`, em: x.criado_em, vaga: x.id }))
-        );
       }
     } catch {
       setVagas((x) => x ?? []);
@@ -94,6 +94,10 @@ export default function Inicio() {
       carregar();
     }, [carregar])
   );
+  useEffect(() => {
+    if (!perfil) return;
+    return ouvirNotificacoes(perfil.id, () => setNAvisos((n) => n + 1));
+  }, [perfil]);
 
   async function salvar(id: string) {
     if (!perfil) return;
@@ -134,7 +138,7 @@ export default function Inicio() {
               {empresa ? 'Que tal encontrar o talento certo para o seu projeto?' : 'Que tal encontrar uma nova oportunidade hoje?'}
             </T>
           </View>
-          <BotaoIcone nome="sino" rotulo="Notificações" onPress={() => setVerAvisos(true)} ponto={avisos.length > 0} />
+          <BotaoIcone nome="sino" rotulo="Avisos" onPress={() => router.push('/notificacoes')} ponto={nAvisos > 0} />
         </View>
         <View style={st.busca}>
           <Icone nome="buscar" cor={C.ink} />
@@ -208,6 +212,15 @@ export default function Inicio() {
               </View>
               <Icone nome="seta" tamanho={18} cor={C.muted} />
             </Pressable>
+          ) : null}
+          {turno ? (
+            <Cartao
+              icone="local"
+              destaque
+              titulo={turno.emAndamento ? 'Turno em andamento' : `Seu turno hoje às ${horaCurta(turno.inicio)}`}
+              sub={turno.emAndamento ? `${turno.titulo} · ${turno.empresa}. Registre a saída ao terminar.` : `${turno.titulo} · ${turno.empresa}. Faça o check-in quando chegar.`}
+              onPress={() => router.push(`/vaga/${turno.vagaId}`)}
+            />
           ) : null}
           {convites > 0 ? (
             <Cartao
@@ -283,34 +296,11 @@ export default function Inicio() {
         </>
       )}
 
-      <Folha visivel={verAvisos} aoFechar={() => setVerAvisos(false)} titulo="Notificações">
-        {avisos.length ? (
-          avisos.map((a, i) => (
-            <Pressable
-              key={i}
-              style={st.aviso}
-              onPress={() => {
-                setVerAvisos(false);
-                router.push(`/vaga/${a.vaga}`);
-              }}>
-              <View style={st.avisoIc}>
-                <Icone nome={empresa ? 'pessoas' : 'brilho'} cor={C.orange} tamanho={17} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <T style={{ fontSize: 14, lineHeight: 20 }}>{a.texto}</T>
-                <T style={{ fontSize: 12, color: C.muted2, marginTop: 2 }}>{tempoRelativo(a.em)}</T>
-              </View>
-            </Pressable>
-          ))
-        ) : (
-          <T style={{ color: C.muted }}>Nenhuma notificação por enquanto.</T>
-        )}
-      </Folha>
     </ScrollView>
   );
 }
 
-function Cartao({ icone, titulo, sub, onPress, destaque }: { icone: 'estrela' | 'enviar' | 'relogio'; titulo: string; sub: string; onPress: () => void; destaque?: boolean }) {
+function Cartao({ icone, titulo, sub, onPress, destaque }: { icone: 'estrela' | 'enviar' | 'relogio' | 'local'; titulo: string; sub: string; onPress: () => void; destaque?: boolean }) {
   return (
     <Pressable style={[st.ativarLoc, destaque && { borderColor: C.orange, backgroundColor: '#FF5A1214' }]} onPress={onPress}>
       <View style={st.ativarIc}>
