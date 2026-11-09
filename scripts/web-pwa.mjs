@@ -15,6 +15,7 @@ const tags = [
   `<meta name="apple-mobile-web-app-title" content="Vora">`,
   `<meta name="description" content="Freelancers para restaurantes, bares e casas noturnas de Porto Alegre.">`,
 ].join('');
+// com "output": "static" as tags já vêm do src/app/+html.tsx; aqui só garante no modo "single"
 if (!html.includes('rel="manifest"')) html = html.replace('</head>', `${tags}</head>`);
 html = html.replace(/<html lang="[^"]*"/, '<html lang="pt-BR"');
 fs.writeFileSync(arq, html);
