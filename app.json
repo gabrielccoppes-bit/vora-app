@@ -63,6 +63,11 @@
       "typedRoutes": false,
       "reactCompiler": true,
       "baseUrl": "/vora-app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b2cdbfb0-d1ea-4882-8e6c-bc1e4426f88c"
+      }
     }
   }
 }
