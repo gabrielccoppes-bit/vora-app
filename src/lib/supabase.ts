@@ -12,11 +12,16 @@ if (!url || !chave) {
   );
 }
 
+// Na web, as páginas são geradas antes no Node (output "static"), onde não existe
+// window nem localStorage. Lá o cliente roda sem guardar sessão; no navegador e
+// no celular, funciona normalmente.
+const noServidor = Platform.OS === 'web' && typeof window === 'undefined';
+
 export const supabase = createClient(url, chave, {
   auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
+    storage: noServidor ? undefined : AsyncStorage,
+    autoRefreshToken: !noServidor,
+    persistSession: !noServidor,
     detectSessionInUrl: false,
   },
 });
