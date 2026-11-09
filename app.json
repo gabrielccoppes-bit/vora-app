@@ -23,7 +23,8 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "single",
+      "bundler": "metro",
+      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -60,7 +61,8 @@
     ],
     "experiments": {
       "typedRoutes": false,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "baseUrl": "/vora-app"
     }
   }
 }
