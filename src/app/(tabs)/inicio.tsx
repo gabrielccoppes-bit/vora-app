@@ -233,7 +233,7 @@ export default function Inicio() {
           ) : null}
           {ponto ? (
             <>
-              <Cabecalho titulo="📍 Perto de você" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas', perto: '1' } })} />
+              <Cabecalho titulo="Perto de você" onVer={() => router.push({ pathname: '/buscar', params: { seg: 'vagas', perto: '1' } })} />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingBottom: 12 }}>
                 {[5, 10, 25, 50].map((km) => (
                   <Chip key={km} texto={`até ${km} km`} ativo={raio === km} onPress={() => setRaio(km)} />

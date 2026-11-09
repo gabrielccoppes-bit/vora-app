@@ -13,7 +13,7 @@ import { C, CATEGORIAS, CONTRATOS, F, MODALIDADES } from '@/theme';
 export default function Buscar() {
   const p = useLocalSearchParams<{ q?: string; seg?: string; urgentes?: string; perto?: string }>();
   const { perfil } = useSessao();
-  const { ponto, ativar } = useLocalizacao();
+  const { ponto, ativar, estado: estadoLoc } = useLocalizacao();
   const [perto, setPerto] = useState(p.perto === '1');
   const [q, setQ] = useState(p.q ?? '');
   const [termo, setTermo] = useState(p.q ?? '');
@@ -108,25 +108,42 @@ export default function Buscar() {
         ))}
       </View>
 
+      {seg === 'vagas' ? (
+        <Pressable
+          onPress={async () => {
+            if (perto && ponto) return setPerto(false);
+            if (!ponto && !(await ativar())) return;
+            setPerto(true);
+          }}
+          style={[st.local, perto && ponto ? { borderColor: C.orange, backgroundColor: '#FF5A1214' } : null]}>
+          <Icone nome="local" cor={perto && ponto ? C.orange : C.cream} />
+          <View style={{ flex: 1 }}>
+            <T style={{ fontFamily: F.interSemi, fontSize: 14.5 }}>
+              {perto && ponto ? 'Mostrando as mais próximas de você' : estadoLoc === 'carregando' ? 'Localizando...' : 'Ver vagas mais próximas de mim'}
+            </T>
+            <T style={{ color: C.muted, fontSize: 12.5, marginTop: 2 }}>
+              {estadoLoc === 'negado'
+                ? 'Localização bloqueada. Libere nas configurações do celular.'
+                : perto && ponto
+                  ? 'Toque para voltar à ordem normal'
+                  : 'Usa sua localização só no celular, sem salvar'}
+            </T>
+          </View>
+          <View style={[st.toggle, perto && ponto ? { backgroundColor: C.orange, alignItems: 'flex-end' } : null]}>
+            <View style={st.toggleBola} />
+          </View>
+        </Pressable>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingTop: 14 }} style={{ flexGrow: 0 }}>
+          <Chip icone="relogio" texto="Livres hoje" ativo={livres === 'hoje'} onPress={() => setLivres((x) => (x === 'hoje' ? '' : 'hoje'))} />
+          <Chip icone="raio" texto="Livres agora" ativo={livres === 'agora'} onPress={() => setLivres((x) => (x === 'agora' ? '' : 'agora'))} />
+          {perfil?.tipo === 'empresa' ? <Chip icone="estrela" texto="Favoritos" ativo={soFavoritos} onPress={() => setSoFavoritos((x) => !x)} /> : null}
+        </ScrollView>
+      )}
+
+      <T style={st.rotulo}>ÁREA</T>
       <View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingVertical: 14 }}>
-          {seg === 'vagas' ? (
-            <Chip
-              texto="📍 Mais próximas"
-              ativo={perto && !!ponto}
-              onPress={async () => {
-                if (!ponto && !(await ativar())) return;
-                setPerto((x) => !x);
-              }}
-            />
-          ) : null}
-          {seg === 'freelas' ? (
-            <>
-              <Chip texto="🗓 Livres hoje" ativo={livres === 'hoje'} onPress={() => setLivres((x) => (x === 'hoje' ? '' : 'hoje'))} />
-              <Chip texto="⏱ Livres agora" ativo={livres === 'agora'} onPress={() => setLivres((x) => (x === 'agora' ? '' : 'agora'))} />
-              {perfil?.tipo === 'empresa' ? <Chip texto="★ Favoritos" ativo={soFavoritos} onPress={() => setSoFavoritos((x) => !x)} /> : null}
-            </>
-          ) : null}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 14 }}>
           {['Todas', ...CATEGORIAS].map((c) => (
             <Chip key={c} texto={c} ativo={area === c} onPress={() => setArea(c)} />
           ))}
@@ -210,4 +227,8 @@ const st = StyleSheet.create({
   seg: { flexDirection: 'row', marginHorizontal: 20, marginTop: 12, backgroundColor: C.card, borderRadius: 16, padding: 4, borderWidth: 1, borderColor: C.stroke },
   segBtn: { flex: 1, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  local: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 20, marginTop: 14, padding: 14, borderRadius: 18, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.stroke },
+  toggle: { width: 42, height: 24, borderRadius: 12, backgroundColor: '#3A2E29', padding: 3, justifyContent: 'center' },
+  toggleBola: { width: 18, height: 18, borderRadius: 9, backgroundColor: C.cream },
+  rotulo: { color: C.muted2, fontSize: 11.5, fontFamily: F.interSemi, letterSpacing: 1.1, paddingHorizontal: 20, marginTop: 14 },
 });
