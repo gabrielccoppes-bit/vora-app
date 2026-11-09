@@ -928,3 +928,32 @@ export function duracao(inicio: string, fim: string) {
   return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
 }
 export const horaCurta = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+/* ================= Primeiros passos ================= */
+export type Passo = { id: string; titulo: string; sub: string; feito: boolean; rota: string };
+/** O que falta para o perfil ficar completo (para a lista de primeiros passos) */
+export async function progressoPerfil(p: Perfil): Promise<Passo[]> {
+  const conta = async (tabela: string, coluna: string) => {
+    const { count } = await supabase.from(tabela).select(coluna, { count: 'exact', head: true }).eq(coluna, p.id);
+    return count ?? 0;
+  };
+  const verif = await supabase.from('verificacoes').select('status').eq('perfil_id', p.id).eq('status', 'pendente').limit(1);
+  const verificacao = p.verificado || (verif.data?.length ?? 0) > 0;
+  if (p.tipo === 'empresa') {
+    const vagas = await conta('vagas', 'empresa_id');
+    return [
+      { id: 'logo', titulo: 'Coloque o logo do seu estabelecimento', sub: 'Vagas com logo recebem mais candidatos', feito: !!p.foto_v, rota: '/editar-perfil' },
+      { id: 'mapa', titulo: 'Confira o endereço no mapa', sub: 'Assim os freelancers veem a distância até você', feito: p.lat != null, rota: '/editar-perfil' },
+      { id: 'vaga', titulo: 'Publique sua primeira vaga', sub: 'Leva menos de 2 minutos', feito: vagas > 0, rota: '/publicar' },
+      { id: 'verificar', titulo: 'Verifique sua identidade', sub: 'Ganhe o selo de estabelecimento verificado', feito: verificacao, rota: '/verificacao' },
+    ];
+  }
+  const [serv, disp, cert, exp] = await Promise.all([conta('servicos', 'freelancer_id'), conta('disponibilidade', 'freelancer_id'), conta('certificados', 'freelancer_id'), conta('experiencias', 'freelancer_id')]);
+  return [
+    { id: 'foto', titulo: 'Coloque uma foto de perfil', sub: 'Perfis com foto são escolhidos com mais confiança', feito: !!p.foto_v, rota: '/editar-perfil' },
+    { id: 'servico', titulo: 'Publique seu serviço', sub: 'É o que aparece para os estabelecimentos na busca', feito: serv > 0, rota: '/publicar' },
+    { id: 'agenda', titulo: 'Marque sua disponibilidade', sub: 'Apareça no filtro "Livres hoje"', feito: disp > 0, rota: '/disponibilidade' },
+    { id: 'curriculo', titulo: 'Conte sua experiência', sub: 'Lugares onde trabalhou e cursos', feito: cert + exp > 0, rota: '/curriculo' },
+    { id: 'verificar', titulo: 'Verifique sua identidade', sub: 'Ganhe o selo de verificado', feito: verificacao, rota: '/verificacao' },
+  ];
+}

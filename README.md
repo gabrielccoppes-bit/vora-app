@@ -119,3 +119,13 @@ supabase/
 4. **Proteção contra abuso:** limite de requisições nas funções de CEP/CNPJ e CAPTCHA no cadastro (o Supabase tem integração com hCaptcha/Turnstile).
 5. **Criptografia de colunas:** se quiserem uma camada extra além da criptografia em repouso do Supabase, usem o **Supabase Vault** para o CPF.
 6. **Notificações push** com `expo-notifications` para mensagens novas e candidaturas.
+
+
+## Publicar o site (GitHub Pages)
+
+```bash
+# com "experiments.baseUrl": "/vora-app" no app.json
+npx expo export -p web
+node scripts/web-pwa.mjs /vora-app   # manifesto do app instalável, 404.html e .nojekyll
+```
+Depois publique o conteúdo de `dist/` no branch `gh-pages`.

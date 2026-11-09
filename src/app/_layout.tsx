@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 import { Botao, T, Tela, ToastProvider } from '@/components/ui';
 import { sair } from '@/lib/api';
 import { LocalizacaoProvider } from '@/lib/localizacao';
+import '@/lib/pwa'; // escuta o convite de instalação o quanto antes
 import { SessaoProvider, useSessao } from '@/lib/sessao';
 import { C } from '@/theme';
 

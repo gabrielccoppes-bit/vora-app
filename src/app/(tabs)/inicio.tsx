@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
+import { InstalarApp, PrimeirosPassos } from '@/components/primeirosPassos';
 import { Botao, BotaoIcone, Brilho, Carregando, Chip, T, Vazio } from '@/components/ui';
 import { alternarSalvo, contratadosDaEmpresa, convitesPendentes, disponibilidadeDe, horaCurta, idsFavoritos, minhasContratacoes, naoLidas, ouvirNotificacoes, idsSalvos, listarServicos, listarVagas, urgentesAbertas, vagasProximas, type Servico, type Vaga } from '@/lib/api';
 import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
@@ -31,10 +32,12 @@ export default function Inicio() {
   const [nAvisos, setNAvisos] = useState(0);
   const [turno, setTurno] = useState<{ vagaId: string; titulo: string; empresa: string; inicio: string; emAndamento: boolean } | null>(null);
   const [atualizando, setAtualizando] = useState(false);
+  const [versao, setVersao] = useState(0); // recalcula os primeiros passos ao voltar para a tela
   const empresa = perfil?.tipo === 'empresa';
 
   const carregar = useCallback(async () => {
     if (!perfil) return;
+    setVersao((v) => v + 1);
     naoLidas(perfil.id).then(setNAvisos).catch(() => {});
     try {
       // tudo em paralelo: a tela não espera uma consulta terminar para começar a próxima
@@ -135,7 +138,7 @@ export default function Inicio() {
           <View style={{ flex: 1 }}>
             <T style={{ fontFamily: F.soraSemi, fontSize: 23 }}>Olá, {empresa ? perfil.nome : primeiroNome(perfil.nome)}!</T>
             <T style={{ fontSize: 16, color: '#E9DBD0', marginTop: 8, lineHeight: 22, maxWidth: 260 }}>
-              {empresa ? 'Que tal encontrar o talento certo para o seu projeto?' : 'Que tal encontrar uma nova oportunidade hoje?'}
+              {empresa ? 'Precisa de reforço para o próximo turno?' : 'Que tal encontrar uma nova oportunidade hoje?'}
             </T>
           </View>
           <BotaoIcone nome="sino" rotulo="Avisos" onPress={() => router.push('/notificacoes')} ponto={nAvisos > 0} />
@@ -160,18 +163,21 @@ export default function Inicio() {
         ))}
       </ScrollView>
 
-      <Pressable style={st.banner} onPress={() => (empresa ? router.navigate('/publicar') : router.push({ pathname: '/buscar', params: { seg: 'freelas' } }))}>
+      <Pressable style={st.banner} onPress={() => (empresa ? router.navigate('/publicar') : router.push({ pathname: '/buscar', params: { seg: 'vagas' } }))}>
         <View style={st.bannerBola} />
         <View style={st.bannerIc}>
           <Icone nome="brilho" cor={C.orange} tamanho={18} />
         </View>
         <T style={{ fontSize: 16.5, lineHeight: 23, fontFamily: F.interMed, maxWidth: 180 }}>
-          {empresa ? 'Publique uma vaga em minutos.' : 'Freelancers de alto nível, mais perto de você.'}
+          {empresa ? 'Publique uma vaga em minutos.' : 'Turnos em bares e restaurantes perto de você.'}
         </T>
         <View style={st.bannerSeta}>
           <Icone nome="seta" cor={C.ink} tamanho={18} />
         </View>
       </Pressable>
+
+      <PrimeirosPassos perfil={perfil} versao={versao} />
+      <InstalarApp />
 
       {empresa ? (
         <>
