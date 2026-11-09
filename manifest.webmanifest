@@ -1,0 +1,17 @@
+{
+  "name": "Vora — freelancers para bares e restaurantes",
+  "short_name": "Vora",
+  "description": "Conecta freelancers a restaurantes, bares e casas noturnas de Porto Alegre.",
+  "lang": "pt-BR",
+  "start_url": "./inicio",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0E0B0A",
+  "theme_color": "#0E0B0A",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
