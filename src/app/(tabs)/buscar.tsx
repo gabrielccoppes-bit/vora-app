@@ -25,6 +25,8 @@ export default function Buscar() {
   const [freelas, setFreelas] = useState<Servico[] | null>(null);
   const [salvos, setSalvos] = useState<Set<string>>(new Set());
   const [livres, setLivres] = useState<'' | 'hoje' | 'agora'>('');
+  const minhasAreas = perfil?.tipo === 'freelancer' ? (perfil.areas?.length ? perfil.areas : perfil.area ? [perfil.area] : []) : [];
+  const [soMinhas, setSoMinhas] = useState(false);
   const [soFavoritos, setSoFavoritos] = useState(false);
 
   // parâmetros vindos da tela inicial
@@ -43,7 +45,7 @@ export default function Buscar() {
     try {
       const bloq = await idsBloqueados(perfil.id).catch(() => new Set<string>());
       if (seg === 'vagas') {
-        const v = await listarVagas({ area, q: termo, ...filt });
+        const v = await listarVagas({ area, areas: soMinhas && area === 'Todas' ? minhasAreas : undefined, q: termo, ...filt });
         setVagas(v.filter((x) => x.empresa_id !== perfil.id && !bloq.has(x.empresa_id)));
         if (perfil.tipo === 'freelancer') setSalvos(await idsSalvos(perfil.id));
       } else {
@@ -63,7 +65,8 @@ export default function Buscar() {
       setVagas([]);
       setFreelas([]);
     }
-  }, [perfil, seg, area, termo, filt, livres, soFavoritos]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil, seg, area, termo, filt, livres, soFavoritos, soMinhas]);
 
   useFocusEffect(
     useCallback(() => {
@@ -144,8 +147,27 @@ export default function Buscar() {
       <T style={st.rotulo}>ÁREA</T>
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 14 }}>
+          {seg === 'vagas' && minhasAreas.length > 1 ? (
+            <Chip
+              icone="estrela"
+              texto="Minhas áreas"
+              ativo={soMinhas && area === 'Todas'}
+              onPress={() => {
+                setArea('Todas');
+                setSoMinhas((x) => !(x && area === 'Todas'));
+              }}
+            />
+          ) : null}
           {['Todas', ...CATEGORIAS].map((c) => (
-            <Chip key={c} texto={c} ativo={area === c} onPress={() => setArea(c)} />
+            <Chip
+              key={c}
+              texto={c}
+              ativo={area === c && !(c === 'Todas' && soMinhas)}
+              onPress={() => {
+                setSoMinhas(false);
+                setArea(c);
+              }}
+            />
           ))}
           {seg === 'vagas' ? <Chip icone="filtros" ativo={nFiltros > 0} onPress={() => setVerFiltros(true)} /> : null}
         </ScrollView>

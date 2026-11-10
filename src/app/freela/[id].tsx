@@ -2,6 +2,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
+import { EtiquetasAreas } from '@/components/areas';
 import { FolhaConvidar, FolhaDenunciar, GradeDisponibilidade, LinhaReputacao } from '@/components/acoes';
 import { CartaoAvaliacao, Estrelas, NotaResumo } from '@/components/avaliacao';
 import { Icone, type NomeIcone } from '@/components/icone';
@@ -148,7 +149,16 @@ export default function PerfilFreelancer() {
       <View style={{ height: 1, backgroundColor: '#E5D3C5', marginHorizontal: 22, marginTop: 22, marginBottom: 6 }} />
       <View style={{ paddingHorizontal: 22 }}>
         {s ? <Meta icone="dinheiro" texto={`A partir de R$ ${dinheiro(s.valor_hora)}/hora`} /> : null}
-        {s ? <Meta icone="maleta" texto={s.area} /> : null}
+        {(s?.areas?.length ? s.areas : p.areas)?.length ? (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingVertical: 10 }}>
+            <Icone nome="maleta" cor="#2C221D" />
+            <View style={{ flex: 1 }}>
+              <EtiquetasAreas areas={s?.areas?.length ? s.areas : p.areas} clara />
+            </View>
+          </View>
+        ) : s ? (
+          <Meta icone="maleta" texto={s.area} />
+        ) : null}
         <Meta icone="escudo" texto={p.verificado ? 'Identidade verificada' : 'CPF validado no cadastro'} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 }}>
           <Icone nome="check" cor="#2C221D" />

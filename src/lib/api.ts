@@ -12,6 +12,7 @@ export type Perfil = {
   nome: string;
   titulo: string | null;
   area: string | null;
+  areas: string[]; // freelancer: todas as áreas (a primeira é a principal)
   cidade: string;
   uf: string;
   verificado: boolean;
@@ -82,6 +83,7 @@ export type Servico = {
   freelancer_id: string;
   titulo: string;
   area: string;
+  areas: string[];
   valor_hora: number;
   habilidades: string[];
   bio: string;
@@ -198,7 +200,7 @@ export async function documentoDisponivel(doc: { cpf?: string; cnpj?: string }) 
 }
 
 /* ================= Autenticação ================= */
-export async function cadastrar(email: string, senha: string, dados: Record<string, string>) {
+export async function cadastrar(email: string, senha: string, dados: Record<string, string | string[]>) {
   const { data, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password: senha, options: { data: dados } });
   if (error) {
     const m = error.message.toLowerCase();
@@ -282,7 +284,7 @@ export async function removerFoto(id: string) {
 }
 
 export type EdicaoPerfil = {
-  perfil: Partial<Pick<Perfil, 'nome' | 'titulo' | 'area' | 'cidade' | 'uf' | 'lat' | 'lng'>>;
+  perfil: Partial<Pick<Perfil, 'nome' | 'titulo' | 'area' | 'areas' | 'cidade' | 'uf' | 'lat' | 'lng'>>;
   privados: Partial<Pick<DadosPrivados, 'telefone' | 'cep' | 'logradouro' | 'numero' | 'complemento' | 'bairro' | 'responsavel_nome' | 'responsavel_cargo'>>;
 };
 
@@ -313,9 +315,10 @@ export async function excluirMinhaConta() {
 /* ================= Vagas ================= */
 const VAGA_SEL = '*, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, lat, lng, nota_media, nota_total, foto_v)';
 
-export async function listarVagas(f: { area?: string; q?: string; modalidade?: string; contrato?: string; urgentes?: boolean; limite?: number } = {}) {
+export async function listarVagas(f: { area?: string; areas?: string[]; q?: string; modalidade?: string; contrato?: string; urgentes?: boolean; limite?: number } = {}) {
   let q = supabase.from('vagas').select(VAGA_SEL).eq('ativa', true).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
   if (f.area && f.area !== 'Todas') q = q.eq('area', f.area);
+  else if (f.areas?.length) q = q.in('area', f.areas); // "Minhas áreas" do freelancer
   if (f.modalidade) q = q.eq('modalidade', f.modalidade);
   if (f.contrato) q = q.eq('contrato', f.contrato);
   const t = limparBusca(f.q ?? '');
@@ -531,11 +534,11 @@ export async function alternarSalvo(freelancerId: string, vagaId: string, salvar
 }
 
 /* ================= Serviços (perfil profissional) ================= */
-const SERV_SEL = '*, perfil:perfis!servicos_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v)';
+const SERV_SEL = '*, perfil:perfis!servicos_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, faltas, cancelamentos)';
 
 export async function listarServicos(f: { area?: string; q?: string; limite?: number } = {}) {
   let q = supabase.from('servicos').select(SERV_SEL).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
-  if (f.area && f.area !== 'Todas') q = q.eq('area', f.area);
+  if (f.area && f.area !== 'Todas') q = q.contains('areas', [f.area]); // qualquer uma das áreas do freelancer
   const t = limparBusca(f.q ?? '');
   if (t) q = q.or(`titulo.ilike.%${t}%,bio.ilike.%${t}%`);
   return ok<Servico[]>(await q);
@@ -547,9 +550,10 @@ export async function buscarServico(id: string) {
 export async function meuServico(freelancerId: string) {
   return ok<Servico | null>(await supabase.from('servicos').select(SERV_SEL).eq('freelancer_id', freelancerId).maybeSingle());
 }
-export async function salvarServico(s: Pick<Servico, 'freelancer_id' | 'titulo' | 'area' | 'valor_hora' | 'habilidades' | 'bio'>) {
-  const r = ok<{ id: string }>(await supabase.from('servicos').upsert(s, { onConflict: 'freelancer_id' }).select('id').single());
-  ok(await supabase.from('perfis').update({ titulo: s.titulo, area: s.area }).eq('id', s.freelancer_id));
+export async function salvarServico(s: Pick<Servico, 'freelancer_id' | 'titulo' | 'areas' | 'valor_hora' | 'habilidades' | 'bio'>) {
+  const dados = { ...s, area: s.areas[0] };
+  const r = ok<{ id: string }>(await supabase.from('servicos').upsert(dados, { onConflict: 'freelancer_id' }).select('id').single());
+  ok(await supabase.from('perfis').update({ titulo: s.titulo, areas: s.areas }).eq('id', s.freelancer_id));
   return r;
 }
 

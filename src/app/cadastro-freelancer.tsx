@@ -4,15 +4,16 @@ import { ScrollView, View } from 'react-native';
 
 import { AcessoForm, acessoVazio, validarAcesso, type CamposAcesso } from '@/components/acesso';
 import { EnderecoForm, enderecoVazio, validarEndereco, type CamposEndereco } from '@/components/endereco';
-import { Botao, Campo, Escolha, Interruptor, Secao, T, Tela, Topo, useToast, type TomDica } from '@/components/ui';
+import { Botao, Campo, Interruptor, Secao, T, Tela, Topo, useToast, type TomDica } from '@/components/ui';
 import { senhaVazada } from '@/lib/senha';
 import { cadastrar, documentoDisponivel } from '@/lib/api';
 import { alfanum, cnpjValido, cpfValido, dataISO, digitos, emailValido, idade } from '@/lib/validacao';
-import { C, CATEGORIAS, TERMOS_VERSAO } from '@/theme';
+import { SeletorAreas } from '@/components/areas';
+import { C, TERMOS_VERSAO } from '@/theme';
 
 export default function CadastroFreelancer() {
   const toast = useToast();
-  const [f, setF] = useState({ nome: '', cpf: '', nascimento: '', email: '', telefone: '', area: '', titulo: '', mei: false, cnpj: '' });
+  const [f, setF] = useState({ nome: '', cpf: '', nascimento: '', email: '', telefone: '', areas: [] as string[], titulo: '', mei: false, cnpj: '' });
   const [end, setEnd] = useState<CamposEndereco>(enderecoVazio);
   const [acesso, setAcesso] = useState<CamposAcesso>(acessoVazio);
   const [erros, setErros] = useState<Record<string, string>>({});
@@ -40,7 +41,7 @@ export default function CadastroFreelancer() {
     else if (idade(iso) > 110) e.nascimento = 'Data inválida.';
     if (!emailValido(f.email)) e.email = 'Informe um e-mail válido.';
     if (digitos(f.telefone).length < 10) e.telefone = 'Informe DDD + número.';
-    if (!f.area) e.area = 'Escolha uma área.';
+    if (!f.areas.length) e.area = 'Escolha pelo menos uma área.';
     if (!f.titulo.trim()) e.titulo = 'Ex.: Bartender, Garçom, Designer...';
     if (f.mei && !cnpjValido(f.cnpj)) e.cnpj = 'CNPJ inválido.';
     Object.assign(e, validarEndereco(end), validarAcesso(acesso));
@@ -61,7 +62,8 @@ export default function CadastroFreelancer() {
         tipo: 'freelancer',
         nome: f.nome.trim(),
         titulo: f.titulo.trim(),
-        area: f.area,
+        area: f.areas[0],
+        areas: f.areas,
         cpf: digitos(f.cpf),
         nascimento: iso!,
         cnpj_mei: f.mei ? alfanum(f.cnpj) : '',
@@ -117,7 +119,7 @@ export default function CadastroFreelancer() {
         <EnderecoForm valor={end} aoMudar={setEnd} erros={erros} />
 
         <Secao titulo="Atuação" />
-        <Escolha rotulo="Área principal" valor={f.area} opcoes={CATEGORIAS} aoMudar={set('area')} erro={erros.area} />
+        <SeletorAreas valor={f.areas} aoMudar={(v) => (setF((a) => ({ ...a, areas: v })), erros.area && setErros((x) => ({ ...x, area: '' })))} erro={erros.area} />
         <Campo rotulo="Título profissional" valor={f.titulo} aoMudar={set('titulo')} placeholder="Ex.: Bartender, Garçom, Product Designer" erro={erros.titulo} />
         <Interruptor titulo="Tenho CNPJ (MEI ou empresa)" sub="Para emitir nota fiscal nos projetos" valor={f.mei} aoMudar={set('mei')} />
         {f.mei ? (

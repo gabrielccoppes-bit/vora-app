@@ -53,7 +53,7 @@ export default function Inicio() {
         setVagas([]);
       } else {
         const [v, urg, sv, prox, contratacoes, nConv, agenda] = await Promise.all([
-          listarVagas({ area, limite: 8 }),
+          listarVagas({ area, limite: 12 }),
           urgentesAbertas(),
           idsSalvos(perfil.id),
           ponto ? vagasProximas(ponto, raio, 12) : Promise.resolve(null),
@@ -74,7 +74,10 @@ export default function Inicio() {
           t ? { vagaId: t.vaga.id, titulo: t.vaga.titulo, empresa: t.vaga.empresa?.nome ?? '', inicio: t.vaga.inicio_em!, emAndamento: !!t.checkin_em } : null
         );
         const daArea = (x: Vaga) => area === 'Todas' || x.area === area;
-        setVagas(v.filter((x) => x.empresa_id !== perfil.id));
+        // nas "Todas", primeiro as vagas das áreas em que o freelancer trabalha
+        const minhas = perfil.areas?.length ? perfil.areas : perfil.area ? [perfil.area] : [];
+        const ordenadas = area === 'Todas' && minhas.length ? [...v].sort((a, b) => Number(minhas.includes(b.area)) - Number(minhas.includes(a.area))) : v;
+        setVagas(ordenadas.filter((x) => x.empresa_id !== perfil.id).slice(0, 8));
         // urgentes: até 30 km de onde a pessoa está; sem localização, mesma cidade
         setUrgentes(
           urg.filter((x) => {

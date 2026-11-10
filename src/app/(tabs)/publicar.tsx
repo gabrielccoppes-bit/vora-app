@@ -6,6 +6,7 @@ import { Botao, Campo, Carregando, Chip, Escolha, Interruptor, T, Tela, Topo, us
 import { meuServico, publicarVaga, salvarServico, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { digitos, dinheiro } from '@/lib/validacao';
+import { SeletorAreas } from '@/components/areas';
 import { C, CATEGORIAS, CONTRATOS, F, HOSPITALIDADE, MODALIDADES, NIVEIS, PERIODOS } from '@/theme';
 
 export default function Publicar() {
@@ -147,12 +148,12 @@ function PublicarVaga() {
 function PublicarServico() {
   const { perfil, recarregarPerfil } = useSessao();
   const toast = useToast();
-  const [f, setF] = useState({ titulo: '', area: '', valor: '', habilidades: '', bio: '' });
+  const [f, setF] = useState({ titulo: '', areas: [] as string[], valor: '', habilidades: '', bio: '' });
   const [existe, setExiste] = useState(false);
   const [pronto, setPronto] = useState(false);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
-  const set = (k: keyof typeof f) => (v: string) => {
+  const set = (k: Exclude<keyof typeof f, 'areas'>) => (v: string) => {
     setF((p) => ({ ...p, [k]: v }));
     if (erros[k]) setErros((e) => ({ ...e, [k]: '' }));
   };
@@ -165,7 +166,7 @@ function PublicarServico() {
           setExiste(!!s);
           setF({
             titulo: s?.titulo ?? perfil.titulo ?? '',
-            area: s?.area ?? perfil.area ?? '',
+            areas: s?.areas?.length ? s.areas : perfil.areas?.length ? perfil.areas : s?.area ? [s.area] : perfil.area ? [perfil.area] : [],
             valor: s ? dinheiro(s.valor_hora) : '',
             habilidades: s?.habilidades.join(', ') ?? '',
             bio: s?.bio ?? '',
@@ -179,7 +180,7 @@ function PublicarServico() {
     const valor = Number(digitos(f.valor));
     const e: Record<string, string> = {};
     if (f.titulo.trim().length < 3) e.titulo = 'Informe o título.';
-    if (!f.area) e.area = 'Escolha a categoria.';
+    if (!f.areas.length) e.area = 'Escolha pelo menos uma área.';
     if (!valor) e.valor = 'Informe o valor por hora.';
     if (!f.habilidades.trim()) e.habilidades = 'Liste ao menos uma habilidade.';
     if (f.bio.trim().length < 20) e.bio = 'Escreva pelo menos 20 caracteres.';
@@ -190,7 +191,7 @@ function PublicarServico() {
       const { id } = await salvarServico({
         freelancer_id: perfil!.id,
         titulo: f.titulo.trim(),
-        area: f.area,
+        areas: f.areas,
         valor_hora: valor,
         habilidades: f.habilidades.split(',').map((x) => x.trim()).filter(Boolean),
         bio: f.bio.trim(),
@@ -213,8 +214,8 @@ function PublicarServico() {
         <T style={{ color: C.muted, lineHeight: 21 }}>
           Seu perfil de serviço aparece para as empresas. Mostramos só nome, cidade e UF — CPF e endereço completo nunca são exibidos.
         </T>
-        <Campo rotulo="Título do serviço" valor={f.titulo} aoMudar={set('titulo')} placeholder="Ex.: UX/UI Designer" erro={erros.titulo} />
-        <Escolha rotulo="Categoria" valor={f.area} opcoes={CATEGORIAS} aoMudar={set('area')} erro={erros.area} />
+        <Campo rotulo="Título do serviço" valor={f.titulo} aoMudar={set('titulo')} placeholder="Ex.: Bartender, Garçom" erro={erros.titulo} />
+        <SeletorAreas valor={f.areas} aoMudar={(v) => (setF((p) => ({ ...p, areas: v })), erros.area && setErros((x) => ({ ...x, area: '' })))} erro={erros.area} />
         <Campo rotulo="Valor por hora (R$)" valor={f.valor} aoMudar={set('valor')} mascara="dinheiro" keyboardType="number-pad" placeholder="100" erro={erros.valor} />
         <Campo rotulo="Habilidades (separe por vírgula)" valor={f.habilidades} aoMudar={set('habilidades')} placeholder="Figma, Prototipação, UX Research" erro={erros.habilidades} />
         <Campo rotulo="Sobre você" valor={f.bio} aoMudar={set('bio')} multiline placeholder="Experiência, tipos de projeto, diferenciais." erro={erros.bio} maxLength={800} />

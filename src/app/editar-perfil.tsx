@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
+import { SeletorAreas } from '@/components/areas';
 import { EnderecoForm, enderecoVazio, validarEndereco, type CamposEndereco } from '@/components/endereco';
 import { Icone } from '@/components/icone';
 import { Avatar, Botao, Campo, Carregando, Escolha, Folha, Secao, T, Tela, Topo, useToast } from '@/components/ui';
@@ -20,9 +21,9 @@ import { escolherImagem } from '@/lib/imagem';
 import { senhaVazada } from '@/lib/senha';
 import { useSessao } from '@/lib/sessao';
 import { digitos, fmtCEP, fmtTelefone, senhaForte } from '@/lib/validacao';
-import { C, CATEGORIAS, F, SETORES } from '@/theme';
+import { C, F, SETORES } from '@/theme';
 
-type Form = { nome: string; titulo: string; area: string; telefone: string; respNome: string; respCargo: string };
+type Form = { nome: string; titulo: string; area: string; areas: string[]; telefone: string; respNome: string; respCargo: string };
 
 export default function EditarPerfil() {
   const { perfil, sessao, recarregarPerfil } = useSessao();
@@ -32,7 +33,7 @@ export default function EditarPerfil() {
   const rolagem = useRef<React.ComponentRef<typeof ScrollView>>(null);
 
   const [privados, setPrivados] = useState<DadosPrivados | null>(null);
-  const [f, setF] = useState<Form>({ nome: '', titulo: '', area: '', telefone: '', respNome: '', respCargo: '' });
+  const [f, setF] = useState<Form>({ nome: '', titulo: '', area: '', areas: [], telefone: '', respNome: '', respCargo: '' });
   const [end, setEnd] = useState<CamposEndereco>(enderecoVazio);
   const [erros, setErros] = useState<Record<string, string | undefined>>({});
   const [salvando, setSalvando] = useState(false);
@@ -56,6 +57,7 @@ export default function EditarPerfil() {
           nome: perfil.nome,
           titulo: perfil.titulo ?? '',
           area: perfil.area ?? '',
+          areas: perfil.areas?.length ? perfil.areas : perfil.area ? [perfil.area] : [],
           telefone: fmtTelefone(d?.telefone ?? ''),
           respNome: d?.responsavel_nome ?? '',
           respCargo: d?.responsavel_cargo ?? '',
@@ -118,7 +120,7 @@ export default function EditarPerfil() {
       if (!f.titulo) e.titulo = 'Escolha o tipo de negócio.';
       if (f.respNome.trim().length < 3) e.respNome = 'Informe o nome do responsável.';
     } else {
-      if (!f.area) e.area = 'Escolha uma área.';
+      if (!f.areas.length) e.area = 'Escolha pelo menos uma área.';
       if (!f.titulo.trim()) e.titulo = 'Ex.: Bartender, Garçom...';
     }
     if (digitos(f.telefone).length < 10) e.telefone = 'Informe DDD + número.';
@@ -147,7 +149,7 @@ export default function EditarPerfil() {
         perfil: {
           nome: f.nome.trim(),
           titulo: empresa ? f.titulo : f.titulo.trim(),
-          area: empresa ? f.titulo : f.area,
+          ...(empresa ? { area: f.titulo } : { areas: f.areas }),
           cidade: end.cidade.trim(),
           uf: end.uf,
           ...(ponto ?? {}),
@@ -242,7 +244,7 @@ export default function EditarPerfil() {
             <Campo rotulo="Nome completo" valor={f.nome} aoMudar={set('nome')} erro={erros.nome} autoComplete="name" />
             <T style={{ color: C.muted2, fontSize: 12.5, marginTop: 8 }}>CPF e data de nascimento não podem ser alterados.</T>
             <Secao titulo="Atuação" />
-            <Escolha rotulo="Área principal" valor={f.area} opcoes={CATEGORIAS} aoMudar={set('area')} erro={erros.area} />
+            <SeletorAreas valor={f.areas} aoMudar={(v) => setF((a) => ({ ...a, areas: v }))} erro={erros.area} />
             <Campo rotulo="Título profissional" valor={f.titulo} aoMudar={set('titulo')} placeholder="Ex.: Bartender, Garçom" erro={erros.titulo} />
             <EnderecoForm valor={end} aoMudar={setEnd} erros={erros} />
             <Secao titulo="Contato" />

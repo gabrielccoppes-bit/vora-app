@@ -5,6 +5,7 @@ import { faixaSalarial, quandoComeca, urgenteAtiva, type Servico, type Vaga, fot
 import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { dinheiro, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
+import { resumoAreas } from './areas';
 import { NotaResumo } from './avaliacao';
 import { Icone } from './icone';
 import { Avatar, BotaoIcone, T, Tag } from './ui';
@@ -65,6 +66,11 @@ export function CartaoFreela({ servico }: { servico: Servico }) {
         <T style={{ color: C.muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
           {servico.titulo} · {servico.perfil?.cidade}, {servico.perfil?.uf}
         </T>
+        {servico.areas?.length > 1 ? (
+          <T style={{ color: C.muted2, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+            {resumoAreas(servico.areas, servico.area, 3)}
+          </T>
+        ) : null}
         <View style={{ marginTop: 4 }}>
           <NotaResumo media={servico.perfil?.nota_media} total={servico.perfil?.nota_total} compacto />
         </View>
