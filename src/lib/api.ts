@@ -22,6 +22,8 @@ export type Perfil = {
   nota_total: number;
   foto_v: number | null; // versão da foto de perfil/logo (null = sem foto)
   suspenso: boolean; // suspensa pela moderação
+  selos: string[]; // selos de destaque (calculados pelo banco)
+  codigo: string | null; // código de indicação
   faltas: number; // freelancer: faltas marcadas pelos contratantes
   cancelamentos: number; // contratações canceladas por esta conta
   criado_em: string;
@@ -55,6 +57,7 @@ type PerfilResumo = Pick<Perfil, 'id' | 'nome' | 'titulo' | 'cidade' | 'uf' | 'v
   foto_v?: number | null;
   faltas?: number;
   cancelamentos?: number;
+  selos?: string[];
 };
 
 export type Vaga = {
@@ -131,7 +134,7 @@ export type Candidatura = {
   freelancer?: PerfilResumo;
   avaliacao?: Pick<Avaliacao, 'id' | 'nota' | 'tags' | 'comentario'> | null;
 };
-const FREELA_EMBED = 'freelancer:perfis!candidaturas_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, faltas, cancelamentos)';
+const FREELA_EMBED = 'freelancer:perfis!candidaturas_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, faltas, cancelamentos, selos)';
 /** PostgREST devolve objeto (1:1) ou lista; normaliza para objeto */
 const umOuNada = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? (x[0] ?? null) : (x ?? null));
 
@@ -146,7 +149,17 @@ export type ConversaResumo = {
   ultima_em: string;
 };
 
-export type Mensagem = { id: string; conversa_id: string; autor_id: string; texto: string; criado_em: string };
+export type Mensagem = {
+  id: string;
+  conversa_id: string;
+  autor_id: string;
+  texto: string;
+  criado_em: string;
+  tipo?: 'texto' | 'foto' | 'local';
+  anexo?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+};
 
 /* ================= Helpers ================= */
 function ok<T = unknown>(r: { data: unknown; error: { message: string } | null }): T {
@@ -549,7 +562,7 @@ export async function alternarSalvo(freelancerId: string, vagaId: string, salvar
 }
 
 /* ================= Serviços (perfil profissional) ================= */
-const SERV_SEL = '*, perfil:perfis!servicos_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, faltas, cancelamentos)';
+const SERV_SEL = '*, perfil:perfis!servicos_freelancer_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, faltas, cancelamentos, selos)';
 
 export async function listarServicos(f: { area?: string; q?: string; limite?: number } = {}) {
   let q = supabase.from('servicos').select(SERV_SEL).order('criado_em', { ascending: false }).limit(f.limite ?? 50);
@@ -1029,4 +1042,76 @@ export async function meusTurnos(freelancerId: string) {
       .order('criado_em', { ascending: false })
       .limit(500)
   ).filter((t) => t.vaga);
+}
+
+/* ================= Selos de destaque ================= */
+export const SELOS: Record<string, { nome: string; descricao: string }> = {
+  top: { nome: 'Top avaliado', descricao: 'Nota 4,8 ou mais em pelo menos 3 avaliações' },
+  presenca: { nome: '100% presença', descricao: '5 ou mais turnos sem nenhuma falta ou cancelamento' },
+  pontual: { nome: 'Pontual', descricao: 'Chega no horário em 90% dos turnos (check-in)' },
+  veterano: { nome: 'Veterano', descricao: '20 ou mais turnos pelo Vora' },
+};
+
+/* ================= Termo de prestação de serviço ================= */
+export type Termo = {
+  id: string;
+  candidatura_id: string;
+  vaga_id: string;
+  empresa_id: string;
+  freelancer_id: string;
+  aceite_empresa_em: string;
+  aceite_freela_em: string | null;
+  criado_em: string;
+  conteudo: {
+    versao: string;
+    contratante: { nome: string; razao_social: string | null; cnpj: string | null; responsavel: string | null; cargo: string | null; endereco: string; cidade: string; uf: string };
+    prestador: { nome: string; cpf: string | null; cnpj_mei: string | null; cidade: string; uf: string };
+    servico: { titulo: string; area: string; descricao: string; inicio_em: string | null; duracao: string; valor_min: number; valor_max: number | null; periodo: Vaga['periodo'] };
+  };
+};
+export async function termoDaCandidatura(candidaturaId: string) {
+  return ok<Termo | null>(await supabase.from('termos_servico').select('*').eq('candidatura_id', candidaturaId).maybeSingle());
+}
+export async function termoPorId(id: string) {
+  return ok<Termo | null>(await supabase.from('termos_servico').select('*').eq('id', id).maybeSingle());
+}
+export async function aceitarTermo(id: string) {
+  const { error } = await supabase.rpc('aceitar_termo', { p_id: id });
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível aceitar agora.');
+}
+
+/* ================= Chat: foto e localização ================= */
+export async function enviarFotoChat(conversaId: string, dados: ArrayBuffer) {
+  const { randomUUID } = await import('expo-crypto');
+  const caminho = `${conversaId}/${randomUUID()}.jpg`;
+  const { error } = await supabase.storage.from('chat').upload(caminho, dados, { contentType: 'image/jpeg' });
+  if (error) throw new Error('Não foi possível enviar a foto.');
+  return ok<Mensagem>(await supabase.from('mensagens').insert({ conversa_id: conversaId, texto: '📷 Foto', tipo: 'foto', anexo: caminho }).select('*').single());
+}
+export async function enviarLocalChat(conversaId: string, lat: number, lng: number) {
+  return ok<Mensagem>(await supabase.from('mensagens').insert({ conversa_id: conversaId, texto: '📍 Localização', tipo: 'local', lat, lng }).select('*').single());
+}
+const cacheFotos = new Map<string, { url: string; ate: number }>();
+/** Link temporário (1h) para ver uma foto do chat */
+export async function urlFotoChat(caminho: string) {
+  const c = cacheFotos.get(caminho);
+  if (c && c.ate > Date.now()) return c.url;
+  const { data } = await supabase.storage.from('chat').createSignedUrl(caminho, 3600);
+  if (data?.signedUrl) cacheFotos.set(caminho, { url: data.signedUrl, ate: Date.now() + 55 * 60e3 });
+  return data?.signedUrl ?? null;
+}
+export const linkMapa = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+/* ================= Indique e ganhe ================= */
+export type Indicado = { nome: string; tipo: TipoConta; criado_em: string; primeiro_turno_em: string | null };
+export async function minhasIndicacoes() {
+  return ok<Indicado[]>(await supabase.rpc('minhas_indicacoes'));
+}
+export const linkIndicacao = (codigo: string) => `https://gabrielccoppes-bit.github.io/vora-app/boas-vindas?ref=${codigo}`;
+/** Situação do termo de cada contratado da vaga (para o dono) */
+export async function termosDaVaga(vagaId: string) {
+  const l = ok<{ id: string; candidatura_id: string; aceite_freela_em: string | null }[]>(
+    await supabase.from('termos_servico').select('id, candidatura_id, aceite_freela_em').eq('vaga_id', vagaId)
+  );
+  return new Map(l.map((t) => [t.candidatura_id, t]));
 }

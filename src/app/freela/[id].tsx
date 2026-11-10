@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
 import { EtiquetasAreas } from '@/components/areas';
+import { Selos } from '@/components/selos';
 import { FolhaConvidar, FolhaDenunciar, GradeDisponibilidade, LinhaReputacao } from '@/components/acoes';
 import { CartaoAvaliacao, Estrelas, NotaResumo } from '@/components/avaliacao';
 import { Icone, type NomeIcone } from '@/components/icone';
@@ -133,6 +134,11 @@ export default function PerfilFreelancer() {
         <View style={{ marginTop: 8 }}>
           <NotaResumo media={p.nota_media} total={p.nota_total} claro />
         </View>
+        {p.selos?.length ? (
+          <View style={{ marginTop: 12, alignItems: 'center' }}>
+            <Selos selos={p.selos} clara />
+          </View>
+        ) : null}
       </View>
 
       {s ? (

@@ -22,6 +22,13 @@ Deno.serve(async (req) => {
     if (arquivos?.length) await admin.storage.from(bucket).remove(arquivos.map((a) => `${pasta}/${a.name}`));
   }
 
+  // fotos enviadas no chat (as conversas somem junto com a conta)
+  const { data: conversas } = await admin.from('conversas').select('id').or(`a.eq.${pasta},b.eq.${pasta}`);
+  for (const c of conversas ?? []) {
+    const { data: fotos } = await admin.storage.from('chat').list(c.id);
+    if (fotos?.length) await admin.storage.from('chat').remove(fotos.map((f) => `${c.id}/${f.name}`));
+  }
+
   const { error: delErr } = await admin.auth.admin.deleteUser(data.user.id);
   if (delErr) return json({ erro: delErr.message }, 500);
   return json({ ok: true });

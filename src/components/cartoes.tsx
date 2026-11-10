@@ -6,6 +6,7 @@ import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { dinheiro, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
 import { resumoAreas } from './areas';
+import { Selos } from './selos';
 import { NotaResumo } from './avaliacao';
 import { Icone } from './icone';
 import { Avatar, BotaoIcone, T, Tag } from './ui';
@@ -73,8 +74,9 @@ export function CartaoFreela({ servico }: { servico: Servico }) {
             {resumoAreas(servico.areas, servico.area, 3)}
           </T>
         ) : null}
-        <View style={{ marginTop: 4 }}>
+        <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <NotaResumo media={servico.perfil?.nota_media} total={servico.perfil?.nota_total} compacto />
+          <Selos selos={servico.perfil?.selos} compacto />
         </View>
       </View>
       <View style={{ alignItems: 'flex-end' }}>

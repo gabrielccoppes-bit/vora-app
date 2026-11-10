@@ -1,20 +1,24 @@
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
 import { Icone } from '@/components/icone';
+import { pinosDe } from '@/components/mapaHtml';
+import { MapaVagas } from '@/components/mapaVagas';
 import { Botao, Carregando, Chip, Folha, T, Tela, Topo, Vazio } from '@/components/ui';
-import { alternarSalvo, disponiveisEm, idsBloqueados, idsFavoritos, idsSalvos, listarServicos, listarVagas, turnoAtual, type Servico, type Vaga } from '@/lib/api';
+import { alternarSalvo, disponiveisEm, faixaSalarial, idsBloqueados, idsFavoritos, idsSalvos, listarServicos, listarVagas, turnoAtual, type Servico, type Vaga } from '@/lib/api';
 import { distanciaAte, useLocalizacao } from '@/lib/localizacao';
 import { useSessao } from '@/lib/sessao';
 import { C, CATEGORIAS, CONTRATOS, F, MODALIDADES } from '@/theme';
 
 export default function Buscar() {
+  const abrirVaga = useCallback((id: string) => router.push(`/vaga/${id}`), []);
   const p = useLocalSearchParams<{ q?: string; seg?: string; urgentes?: string; perto?: string }>();
   const { perfil } = useSessao();
   const { ponto, ativar, estado: estadoLoc } = useLocalizacao();
   const [perto, setPerto] = useState(p.perto === '1');
+  const [modoMapa, setModoMapa] = useState(false);
   const [q, setQ] = useState(p.q ?? '');
   const [termo, setTermo] = useState(p.q ?? '');
   const [seg, setSeg] = useState<'vagas' | 'freelas'>(p.seg === 'freelas' ? 'freelas' : 'vagas');
@@ -173,6 +177,28 @@ export default function Buscar() {
         </ScrollView>
       </View>
 
+      {seg === 'vagas' ? (
+        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 10 }}>
+          <Chip icone="buscar" texto="Lista" ativo={!modoMapa} onPress={() => setModoMapa(false)} />
+          <Chip icone="local" texto="Mapa" ativo={modoMapa} onPress={() => setModoMapa(true)} />
+        </View>
+      ) : null}
+
+      {seg === 'vagas' && modoMapa ? (
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingBottom: 16 }}>
+          {vagas === null ? (
+            <Carregando />
+          ) : (
+            <>
+              <T style={{ color: C.muted, fontSize: 12.5, marginBottom: 8 }}>
+                {pinosDe(vagas, faixaSalarial).length} de {vagas.length} vagas no mapa
+                {vagas.length > pinosDe(vagas, faixaSalarial).length ? ' (algumas não têm endereço no mapa)' : ''}
+              </T>
+              <MapaVagas pinos={pinosDe(vagas, faixaSalarial)} eu={ponto} aoAbrir={abrirVaga} />
+            </>
+          )}
+        </View>
+      ) : (
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30, gap: 12 }} keyboardShouldPersistTaps="handled">
         {lista === null ? (
           <Carregando />
@@ -212,6 +238,7 @@ export default function Buscar() {
           </>
         )}
       </ScrollView>
+      )}
 
       <Folha visivel={verFiltros} aoFechar={() => setVerFiltros(false)} titulo="Filtros">
         <View style={[st.chips, { marginTop: 6 }]}>

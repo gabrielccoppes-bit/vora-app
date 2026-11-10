@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
+import { codigoIndicacao, limparIndicacao } from '@/lib/indicacao';
 import { AcessoForm, acessoVazio, validarAcesso, type CamposAcesso } from '@/components/acesso';
 import { EnderecoForm, enderecoVazio, validarEndereco, type CamposEndereco } from '@/components/endereco';
 import { Botao, Campo, Escolha, Secao, T, Tela, Topo, useToast, type TomDica } from '@/components/ui';
@@ -20,6 +21,10 @@ export default function CadastroEmpresa() {
   const [erros, setErros] = useState<Record<string, string>>({});
   const [dicaCnpj, setDicaCnpj] = useState(DICA_INICIAL);
   const [enviando, setEnviando] = useState(false);
+  const [ref, setRef] = useState(''); // código de quem indicou (opcional)
+  useEffect(() => {
+    codigoIndicacao().then((c) => c && setRef(c));
+  }, []);
   const ultimoCnpj = useRef('');
   const cnpjAtual = useRef('');
   const rolagem = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -109,7 +114,9 @@ export default function CadastroEmpresa() {
         cidade: end.cidade.trim(),
         uf: end.uf,
         termos_versao: TERMOS_VERSAO,
+        ref: ref.trim().toUpperCase(),
       });
+      limparIndicacao();
       if (precisaConfirmarEmail) {
         toast('Conta criada! Confirme pelo link enviado ao e-mail.');
         router.replace('/entrar');
@@ -167,6 +174,13 @@ export default function CadastroEmpresa() {
         <Campo rotulo="Telefone" valor={f.telefone} aoMudar={set('telefone')} mascara="telefone" keyboardType="phone-pad" placeholder="(51) 3000-0000" erro={erros.telefone} />
 
         <AcessoForm valor={acesso} aoMudar={setAcesso} erros={erros} />
+        <Campo
+          rotulo="Código de convite (opcional)"
+          valor={ref}
+          aoMudar={(v) => setRef(v.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase())}
+          placeholder="Se alguém te indicou"
+          autoCapitalize="characters"
+        />
         <View style={{ marginTop: 24 }}>
           <Botao titulo="Criar conta" onPress={enviar} carregando={enviando} />
         </View>

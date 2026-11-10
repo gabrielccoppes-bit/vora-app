@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
+import { codigoIndicacao, limparIndicacao } from '@/lib/indicacao';
 import { AcessoForm, acessoVazio, validarAcesso, type CamposAcesso } from '@/components/acesso';
 import { EnderecoForm, enderecoVazio, validarEndereco, type CamposEndereco } from '@/components/endereco';
 import { Botao, Campo, Interruptor, Secao, T, Tela, Topo, useToast, type TomDica } from '@/components/ui';
@@ -18,6 +19,10 @@ export default function CadastroFreelancer() {
   const [acesso, setAcesso] = useState<CamposAcesso>(acessoVazio);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  const [ref, setRef] = useState(''); // código de quem indicou (opcional)
+  useEffect(() => {
+    codigoIndicacao().then((c) => c && setRef(c));
+  }, []);
   const rolagem = useRef<React.ComponentRef<typeof ScrollView>>(null);
 
   const set = <K extends keyof typeof f>(k: K) => (v: (typeof f)[K]) => {
@@ -76,7 +81,9 @@ export default function CadastroFreelancer() {
         cidade: end.cidade.trim(),
         uf: end.uf,
         termos_versao: TERMOS_VERSAO,
+        ref: ref.trim().toUpperCase(),
       });
+      limparIndicacao();
       if (precisaConfirmarEmail) {
         toast('Conta criada! Confirme pelo link enviado ao seu e-mail.');
         router.replace('/entrar');
@@ -137,6 +144,13 @@ export default function CadastroFreelancer() {
         ) : null}
 
         <AcessoForm valor={acesso} aoMudar={setAcesso} erros={erros} />
+        <Campo
+          rotulo="Código de convite (opcional)"
+          valor={ref}
+          aoMudar={(v) => setRef(v.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase())}
+          placeholder="Se alguém te indicou"
+          autoCapitalize="characters"
+        />
         <View style={{ marginTop: 24 }}>
           <Botao titulo="Criar conta" onPress={enviar} carregando={enviando} />
         </View>

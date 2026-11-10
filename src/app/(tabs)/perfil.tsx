@@ -174,6 +174,9 @@ export default function Perfil() {
       </Grupo>
 
       <Grupo titulo="Conta">
+        <Item icone="enviar" onPress={() => router.push('/indicar')} sub="Convide colegas e outros estabelecimentos">
+          Indique o Vora
+        </Item>
         <Item icone="sino" onPress={() => router.push('/notificacoes')} sub="Histórico e notificações do navegador">
           Avisos
         </Item>

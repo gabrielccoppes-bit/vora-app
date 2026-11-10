@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { FolhaConvidar, FolhaDenunciar, LinhaReputacao } from '@/components/acoes';
+import { Selos } from '@/components/selos';
 import { CamposInstrucoes, CartaoInstrucoes, paraForm, type FormInstrucoes } from '@/components/instrucoes';
 import { FolhaAvaliar, NotaResumo, type AlvoAvaliacao } from '@/components/avaliacao';
 import { SeloUrgente } from '@/components/cartoes';
@@ -16,6 +17,8 @@ import {
   candidatar,
   candidatosDaVaga,
   alternarSubstituto,
+  termoDaCandidatura,
+  termosDaVaga,
   instrucoesDaVaga,
   repetirVaga,
   salvarInstrucoes,
@@ -74,6 +77,8 @@ export default function DetalheVaga() {
   const [formInstr, setFormInstr] = useState<FormInstrucoes | null>(null);
   const [escala, setEscala] = useState<TurnoDaEscala[]>([]);
   const [repetindo, setRepetindo] = useState(false);
+  const [termo, setTermo] = useState<{ id: string; aceite_freela_em: string | null } | null>(null); // freelancer
+  const [termos, setTermos] = useState<Map<string, { id: string; aceite_freela_em: string | null }>>(new Map()); // dono
   const [avaliar, setAvaliar] = useState<AlvoAvaliacao | null>(null);
   const [decidindo, setDecidindo] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState('');
@@ -104,6 +109,8 @@ export default function DetalheVaga() {
           ]);
           setInstr(ins);
           setEscala(serie);
+          if (dono) termosDaVaga(id).then(setTermos).catch(() => {});
+          if (minhaC?.status === 'contratado') termoDaCandidatura(minhaC.id).then(setTermo).catch(() => {});
           setConvites(convs);
           setBloqueado(bloq.has(v.empresa_id));
           setTotal(t);
@@ -501,6 +508,11 @@ export default function DetalheVaga() {
                       <View style={{ marginTop: 4 }}>
                         <NotaResumo media={c.freelancer?.nota_media} total={c.freelancer?.nota_total} claro />
                       </View>
+                      {c.freelancer?.selos?.length ? (
+                        <View style={{ marginTop: 4 }}>
+                          <Selos selos={c.freelancer.selos} compacto />
+                        </View>
+                      ) : null}
                       {c.freelancer?.faltas || c.freelancer?.cancelamentos ? (
                         <View style={{ marginTop: 3 }}>
                           <LinhaReputacao faltas={c.freelancer.faltas} cancelamentos={c.freelancer.cancelamentos} clara />
@@ -510,6 +522,13 @@ export default function DetalheVaga() {
                     <Icone nome="seta" tamanho={16} cor="#7A6A61" />
                   </Pressable>
                   {c.mensagem ? <T style={{ color: C.ink2, fontSize: 13, marginTop: 8, lineHeight: 18 }}>“{c.mensagem}”</T> : null}
+                  {c.status === 'contratado' && termos.get(c.id) ? (
+                    <Pressable onPress={() => router.push(`/termo/${termos.get(c.id)!.id}`)} style={[st.presenca, { marginTop: 8 }]}>
+                      <Icone nome="arquivo" tamanho={16} cor={termos.get(c.id)!.aceite_freela_em ? '#1F7A4C' : '#7A6A61'} />
+                      <T style={{ color: C.ink2, fontSize: 13, flex: 1 }}>{termos.get(c.id)!.aceite_freela_em ? 'Termo de serviço aceito' : 'Termo de serviço aguardando aceite'}</T>
+                      <T style={{ color: C.orange, fontSize: 12.5, fontFamily: F.interSemi }}>Ver</T>
+                    </Pressable>
+                  ) : null}
                   {c.status === 'contratado' && (c.checkin_em || !vaga.inicio_em || new Date(vaga.inicio_em).getTime() - 2 * 3600e3 <= Date.now()) ? (
                     <View style={st.presenca}>
                       <Icone nome="local" tamanho={16} cor={c.checkin_em ? '#1F7A4C' : '#7A6A61'} />
@@ -676,6 +695,16 @@ export default function DetalheVaga() {
                   </View>
                 );
               })()}
+              {termo ? (
+                <Pressable onPress={() => router.push(`/termo/${termo.id}`)} style={[st.turno, { borderColor: termo.aceite_freela_em ? '#E3D2C4' : C.orange, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+                  <Icone nome="arquivo" cor={termo.aceite_freela_em ? '#1F7A4C' : C.orange} />
+                  <View style={{ flex: 1 }}>
+                    <T style={{ color: C.ink, fontFamily: F.interSemi }}>Termo de prestação de serviço</T>
+                    <T style={{ color: '#7A6A61', fontSize: 13, marginTop: 2 }}>{termo.aceite_freela_em ? 'Aceito ✓ · toque para ver' : 'Leia e aceite antes do turno'}</T>
+                  </View>
+                  <Icone nome="seta" tamanho={16} cor="#7A6A61" />
+                </Pressable>
+              ) : null}
               {!minha.checkin_em ? <Botao titulo="Não vou poder ir" variante="fantasma" onPress={() => (setMotivo(''), setFolha('desistir'))} /> : null}
               <Botao
                 titulo={minha.avaliacao ? `Sua avaliação: ★ ${minha.avaliacao.nota} · Editar` : 'Avaliar este estabelecimento'}

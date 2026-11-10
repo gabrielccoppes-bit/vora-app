@@ -10,6 +10,7 @@ import { Botao, T, Tela, ToastProvider } from '@/components/ui';
 import { sair } from '@/lib/api';
 import { LocalizacaoProvider } from '@/lib/localizacao';
 import '@/lib/pwa'; // escuta o convite de instalação o quanto antes
+import { capturarIndicacao } from '@/lib/indicacao';
 import { SessaoProvider, useSessao } from '@/lib/sessao';
 import { C } from '@/theme';
 
@@ -38,6 +39,11 @@ function Navegacao({ pronto }: { pronto: boolean }) {
   useEffect(() => {
     if (pronto && !carregando) SplashScreen.hideAsync();
   }, [pronto, carregando]);
+
+  // link de convite (?ref=CODIGO): guarda para o cadastro
+  useEffect(() => {
+    capturarIndicacao();
+  }, []);
 
   // notificações com o app fechado (APK): registra o aparelho depois do login
   const uid = perfil?.id;
@@ -79,6 +85,8 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="admin" />
           <Stack.Screen name="notificacoes" />
           <Stack.Screen name="ganhos" />
+          <Stack.Screen name="termo/[id]" />
+          <Stack.Screen name="indicar" />
         </Stack.Protected>
         {/* Boas-vindas, login e cadastro */}
         <Stack.Protected guard={!sessao}>
