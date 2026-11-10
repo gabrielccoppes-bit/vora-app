@@ -3,7 +3,9 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Botao, Campo, Carregando, Chip, Escolha, Interruptor, T, Tela, Topo, useToast } from '@/components/ui';
-import { meuServico, publicarVaga, salvarServico, type Vaga } from '@/lib/api';
+import { DIAS, meuServico, publicarEscala, publicarVaga, salvarInstrucoes, salvarServico, type Vaga } from '@/lib/api';
+import { CamposInstrucoes } from '@/components/instrucoes';
+import { Icone } from '@/components/icone';
 import { useSessao } from '@/lib/sessao';
 import { dataISO, digitos, dinheiro } from '@/lib/validacao';
 import { SeletorAreas } from '@/components/areas';
@@ -31,6 +33,13 @@ function PublicarVaga() {
   const [data, setData] = useState(''); // turno com data marcada (vagas normais)
   const [qtd, setQtd] = useState(1);
   const [substituto, setSubstituto] = useState(true);
+  // escala: repete toda semana nos dias escolhidos
+  const [escala, setEscala] = useState(false);
+  const [diasEscala, setDiasEscala] = useState<number[]>([]); // 0 = domingo
+  const [semanas, setSemanas] = useState(4);
+  // informações para a equipe (só contratados veem)
+  const [verInstr, setVerInstr] = useState(false);
+  const [instr, setInstr] = useState({ traje: '', levar: '', chegada: '', contato: '' });
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
   const set = (k: keyof typeof f) => (v: string) => {
@@ -59,6 +68,9 @@ function PublicarVaga() {
         if (d.getTime() < Date.now() - 3600e3) e.hora = 'Esse horário já passou. Escolha "Amanhã" ou outro horário.';
         else inicio = d.toISOString();
       }
+    } else if (escala) {
+      if (!diasEscala.length) e.dias = 'Escolha pelo menos um dia da semana.';
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(hora)) e.hora = 'Use o formato 20:00.';
     } else if (data || hora) {
       // data do turno é opcional, mas se informar precisa da data e da hora
       const iso = dataISO(data);
@@ -76,7 +88,7 @@ function PublicarVaga() {
     if (Object.keys(e).length) return toast('Confira os campos destacados');
     setEnviando(true);
     try {
-      const { id } = await publicarVaga({
+      const dados = {
         empresa_id: perfil!.id,
         titulo: f.titulo.trim(),
         area: f.area,
@@ -93,13 +105,27 @@ function PublicarVaga() {
         inicio_em: inicio,
         quantidade: qtd,
         substituto_auto: substituto,
-      });
+      };
+      let id: string;
+      let n = 1;
+      if (escala) {
+        const turnos = await publicarEscala(dados, proximosTurnos(diasEscala, hora, semanas));
+        id = turnos[0].id;
+        n = turnos.length;
+        await salvarInstrucoes(turnos.map((t) => t.id), instr).catch(() => {});
+      } else {
+        ({ id } = await publicarVaga(dados));
+        await salvarInstrucoes([id], instr).catch(() => {});
+      }
       setF(vazio);
+      setEscala(false);
+      setDiasEscala([]);
+      setInstr({ traje: '', levar: '', chegada: '', contato: '' });
       setUrgente(false);
       setHora('');
       setData('');
       setQtd(1);
-      toast(urgente ? 'Vaga urgente publicada! Avisamos os freelancers da cidade.' : 'Vaga publicada!');
+      toast(urgente ? 'Vaga urgente publicada! Avisamos os freelancers da cidade.' : n > 1 ? `Escala publicada: ${n} turnos!` : 'Vaga publicada!');
       router.push(`/vaga/${id}`);
     } catch (err) {
       toast((err as Error).message);
@@ -142,6 +168,67 @@ function PublicarVaga() {
           </View>
         ) : null}
         {!urgente ? (
+          <Interruptor
+            titulo="Repetir toda semana"
+            sub="Para escalas fixas, como toda sexta e sábado. Criamos um turno para cada dia."
+            valor={escala}
+            aoMudar={setEscala}
+          />
+        ) : null}
+        {!urgente && escala ? (
+          <View>
+            <T style={{ color: C.muted, fontSize: 13, fontFamily: F.interMed, marginTop: 14, marginBottom: 8 }}>Dias da semana</T>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                <Chip
+                  key={d}
+                  texto={DIAS[d]}
+                  ativo={diasEscala.includes(d)}
+                  onPress={() => {
+                    setDiasEscala((l) => (l.includes(d) ? l.filter((x) => x !== d) : [...l, d]));
+                    if (erros.dias) setErros((x) => ({ ...x, dias: '' }));
+                  }}
+                />
+              ))}
+            </View>
+            {erros.dias ? <T style={{ color: C.bad, fontSize: 12.5, marginTop: 6 }}>{erros.dias}</T> : null}
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
+              <Campo
+                rotulo="Início do turno"
+                valor={hora}
+                aoMudar={(v) => (setHora(v), erros.hora && setErros((x) => ({ ...x, hora: '' })))}
+                mascara="hora"
+                keyboardType="number-pad"
+                placeholder="20:00"
+                erro={erros.hora}
+                estilo={{ flex: 1 }}
+              />
+              <View style={{ flex: 1.3, marginTop: 12 }}>
+                <T style={{ color: C.muted, fontSize: 13, fontFamily: F.interMed, marginBottom: 8 }}>Por quantas semanas</T>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Pressable onPress={() => setSemanas((n) => Math.max(1, n - 1))} style={st.passo} accessibilityLabel="Menos uma semana">
+                    <T style={{ fontSize: 22, fontFamily: F.interSemi }}>−</T>
+                  </Pressable>
+                  <T style={{ fontFamily: F.soraSemi, fontSize: 20, minWidth: 24, textAlign: 'center' }}>{semanas}</T>
+                  <Pressable onPress={() => setSemanas((n) => Math.min(8, n + 1))} style={st.passo} accessibilityLabel="Mais uma semana">
+                    <T style={{ fontSize: 22, fontFamily: F.interSemi }}>+</T>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+            {diasEscala.length && /^([01]\d|2[0-3]):([0-5]\d)$/.test(hora) ? (
+              <T style={{ color: C.muted2, fontSize: 12.5, marginTop: 8, lineHeight: 18 }}>
+                Serão criados {proximosTurnos(diasEscala, hora, semanas).length} turnos:{' '}
+                {proximosTurnos(diasEscala, hora, semanas)
+                  .slice(0, 4)
+                  .map((x) => new Date(x).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }))
+                  .join(', ')}
+                {proximosTurnos(diasEscala, hora, semanas).length > 4 ? '…' : ''}
+              </T>
+            ) : null}
+          </View>
+        ) : null}
+        {!urgente && !escala ? (
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Campo
               rotulo="Data do turno (opcional)"
@@ -165,7 +252,7 @@ function PublicarVaga() {
             />
           </View>
         ) : null}
-        {!urgente ? <T style={{ color: C.muted2, fontSize: 12.5, marginTop: 6 }}>Com data e horário, o Vora lembra a equipe antes do turno e libera o check-in na hora certa.</T> : null}
+        {!urgente && !escala ? <T style={{ color: C.muted2, fontSize: 12.5, marginTop: 6 }}>Com data e horário, o Vora lembra a equipe antes do turno e libera o check-in na hora certa.</T> : null}
 
         <View style={{ marginTop: 14 }}>
           <T style={{ color: C.muted, fontSize: 13, fontFamily: F.interMed, marginBottom: 8 }}>Quantas pessoas você precisa?</T>
@@ -204,7 +291,16 @@ function PublicarVaga() {
         <Campo rotulo="Duração" valor={f.duracao} aoMudar={set('duracao')} placeholder={casa ? 'Ex.: Sex e sáb, 20h às 4h' : 'Ex.: Projeto de 3 meses'} erro={erros.duracao} />
         <Campo rotulo="Descrição" valor={f.descricao} aoMudar={set('descricao')} multiline placeholder={casa ? 'Conte sobre a casa, o público, uniforme, alimentação e transporte no fim do turno.' : 'Conte sobre o projeto, entregas e como é trabalhar com vocês.'} erro={erros.descricao} maxLength={2000} />
         <Campo rotulo="Requisitos (separe por vírgula)" valor={f.requisitos} aoMudar={set('requisitos')} placeholder="React, TypeScript, Git" />
-        <Botao titulo="Publicar vaga" onPress={enviar} carregando={enviando} estilo={{ marginTop: 24 }} />
+        <Pressable onPress={() => setVerInstr((x) => !x)} style={st.secao}>
+          <View style={{ flex: 1 }}>
+            <T style={{ fontFamily: F.interSemi, fontSize: 15 }}>Informações para a equipe</T>
+            <T style={{ color: C.muted, fontSize: 12.5, marginTop: 2 }}>Traje, o que levar, onde entrar. Só os contratados veem.</T>
+          </View>
+          <Icone nome={verInstr ? 'cima' : 'baixo'} cor={C.muted} />
+        </Pressable>
+        {verInstr ? <CamposInstrucoes valor={instr} aoMudar={setInstr} /> : null}
+
+        <Botao titulo={escala ? 'Publicar escala' : 'Publicar vaga'} onPress={enviar} carregando={enviando} estilo={{ marginTop: 24 }} />
       </View>
     </Tela>
   );
@@ -290,6 +386,20 @@ function PublicarServico() {
   );
 }
 
+/** Próximas datas da escala: cada dia escolhido, a partir de hoje, por N semanas */
+function proximosTurnos(dias: number[], hora: string, semanas: number) {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hora);
+  if (!m || !dias.length) return [];
+  const lista: string[] = [];
+  const hoje = new Date();
+  for (let i = 0; i < semanas * 7; i++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + i, Number(m[1]), Number(m[2]));
+    if (dias.includes(d.getDay()) && d.getTime() > Date.now()) lista.push(d.toISOString());
+  }
+  return lista;
+}
+
 const st = StyleSheet.create({
+  secao: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, padding: 14, borderRadius: 16, backgroundColor: C.card, borderWidth: 1, borderColor: C.stroke },
   passo: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: C.stroke, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card },
 });

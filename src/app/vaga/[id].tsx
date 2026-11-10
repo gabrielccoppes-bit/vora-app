@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { FolhaConvidar, FolhaDenunciar, LinhaReputacao } from '@/components/acoes';
+import { CamposInstrucoes, CartaoInstrucoes, paraForm, type FormInstrucoes } from '@/components/instrucoes';
 import { FolhaAvaliar, NotaResumo, type AlvoAvaliacao } from '@/components/avaliacao';
 import { SeloUrgente } from '@/components/cartoes';
 import { Icone, type NomeIcone } from '@/components/icone';
@@ -15,6 +16,10 @@ import {
   candidatar,
   candidatosDaVaga,
   alternarSubstituto,
+  instrucoesDaVaga,
+  repetirVaga,
+  salvarInstrucoes,
+  turnosDaEscala,
   confirmarPresenca,
   mudarQuantidade,
   convitesDaVaga,
@@ -34,6 +39,8 @@ import {
   totalCandidaturas,
   urgenteAtiva,
   type Candidatura,
+  type Instrucoes,
+  type TurnoDaEscala,
   type Convite,
   type Favorito,
   type Vaga,
@@ -54,7 +61,7 @@ export default function DetalheVaga() {
   const [minha, setMinha] = useState<Candidatura | null>(null);
   const [salva, setSalva] = useState(false);
   const [candidatos, setCandidatos] = useState<Candidatura[]>([]);
-  const [folha, setFolha] = useState<'candidatar' | 'encerrar' | 'desistir' | 'favoritos' | null>(null);
+  const [folha, setFolha] = useState<'candidatar' | 'encerrar' | 'desistir' | 'favoritos' | 'repetir' | null>(null);
   const [gerir, setGerir] = useState<{ c: Candidatura; acao: 'falta' | 'cancelar' } | null>(null);
   const [motivo, setMotivo] = useState('');
   const [convites, setConvites] = useState<Convite[]>([]);
@@ -63,6 +70,10 @@ export default function DetalheVaga() {
   const [menu, setMenu] = useState(false);
   const [bloqueado, setBloqueado] = useState(false);
   const [presenca, setPresenca] = useState<string | null>(null); // id em andamento
+  const [instr, setInstr] = useState<Instrucoes | null>(null);
+  const [formInstr, setFormInstr] = useState<FormInstrucoes | null>(null);
+  const [escala, setEscala] = useState<TurnoDaEscala[]>([]);
+  const [repetindo, setRepetindo] = useState(false);
   const [avaliar, setAvaliar] = useState<AlvoAvaliacao | null>(null);
   const [decidindo, setDecidindo] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState('');
@@ -81,14 +92,18 @@ export default function DetalheVaga() {
           if (!v) return;
           const dono = v.empresa_id === perfil.id;
           const freela = perfil.tipo === 'freelancer';
-          const [t, cands, minhaC, salvos, convs, bloq] = await Promise.all([
+          const [t, cands, minhaC, salvos, convs, bloq, ins, serie] = await Promise.all([
             totalCandidaturas(id),
             dono ? candidatosDaVaga(id) : Promise.resolve([]),
             freela ? minhaCandidatura(id, perfil.id) : Promise.resolve(null),
             freela ? idsSalvos(perfil.id) : Promise.resolve(new Set<string>()),
             dono ? convitesDaVaga(id).catch(() => []) : Promise.resolve([]),
             !dono ? idsBloqueados(perfil.id).catch(() => new Set<string>()) : Promise.resolve(new Set<string>()),
+            instrucoesDaVaga(id).catch(() => null), // só dono e contratados conseguem ler
+            dono && v.serie_id ? turnosDaEscala(v.serie_id).catch(() => []) : Promise.resolve([]),
           ]);
+          setInstr(ins);
+          setEscala(serie);
           setConvites(convs);
           setBloqueado(bloq.has(v.empresa_id));
           setTotal(t);
@@ -229,6 +244,33 @@ export default function DetalheVaga() {
       toast((e as Error).message);
     } finally {
       setPresenca(null);
+    }
+  }
+
+  async function gravarInstrucoes() {
+    if (!vaga || !formInstr) return;
+    try {
+      await salvarInstrucoes([vaga.id], formInstr);
+      setInstr(await instrucoesDaVaga(vaga.id));
+      setFormInstr(null);
+      toast('Informações salvas. Os contratados já veem.');
+    } catch {
+      toast('Não foi possível salvar.');
+    }
+  }
+
+  async function repetir(convidar: boolean) {
+    if (!vaga) return;
+    setRepetindo(true);
+    try {
+      const r = await repetirVaga(vaga.id, convidar);
+      setFolha(null);
+      toast(r.convidados ? `Turno criado! Convidamos ${r.convidados} pessoa(s) da equipe.` : 'Turno da próxima semana criado!');
+      router.push(`/vaga/${r.id}`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setRepetindo(false);
     }
   }
 
@@ -394,6 +436,53 @@ export default function DetalheVaga() {
         </View>
       ) : null}
 
+      {dono || (minha?.status === 'contratado' && instr) ? (
+        <View style={st.lotacao}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: instr ? 12 : 0 }}>
+            <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 15.5 }}>{dono ? 'Informações para a equipe' : 'O que levar no turno'}</T>
+            {dono ? (
+              <T style={{ color: C.orange, fontFamily: F.interSemi }} onPress={() => setFormInstr(paraForm(instr))}>
+                {instr ? 'Editar' : 'Adicionar'}
+              </T>
+            ) : null}
+          </View>
+          {instr ? (
+            <CartaoInstrucoes i={instr} clara />
+          ) : (
+            <T style={{ color: '#7A6A61', fontSize: 13, marginTop: 6 }}>Traje, o que levar e onde entrar. Só os contratados veem.</T>
+          )}
+        </View>
+      ) : null}
+
+      {dono && escala.length > 1 ? (
+        <View style={st.lotacao}>
+          <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 15.5, marginBottom: 10 }}>Escala · {escala.length} turnos</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {escala.map((t) => (
+              <Pressable
+                key={t.id}
+                onPress={() => t.id !== vaga.id && router.push(`/vaga/${t.id}`)}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  borderRadius: 12,
+                  borderWidth: 1.5,
+                  borderColor: t.id === vaga.id ? C.orange : '#E3D2C4',
+                  backgroundColor: t.completa ? '#E6F4EC' : '#fff',
+                }}>
+                <T style={{ color: C.ink, fontSize: 12.5, fontFamily: F.interSemi }}>
+                  {t.inicio_em ? new Date(t.inicio_em).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '—'}
+                </T>
+                <T style={{ color: '#7A6A61', fontSize: 11.5 }}>
+                  {t.contratados}/{t.quantidade}
+                  {t.completa ? ' ✓' : ''}
+                </T>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       {dono ? (
         <>
           <View style={st.hr} />
@@ -541,12 +630,11 @@ export default function DetalheVaga() {
               </View>
             </>
           ) : null}
-          {vaga.ativa ? (
-            <View style={st.acoes}>
-              <Botao titulo="Convidar favoritos" icone="estrela" onPress={abrirFavoritos} />
-              <Botao titulo="Encerrar vaga" icone="lixo" variante="contornoEscuro" onPress={() => setFolha('encerrar')} />
-            </View>
-          ) : null}
+          <View style={st.acoes}>
+            {vaga.ativa ? <Botao titulo="Convidar favoritos" icone="estrela" onPress={abrirFavoritos} /> : null}
+            {vaga.inicio_em ? <Botao titulo="Repetir na próxima semana" icone="relogio" variante="contornoEscuro" onPress={() => setFolha('repetir')} /> : null}
+            {vaga.ativa ? <Botao titulo="Encerrar vaga" icone="lixo" variante="contornoEscuro" onPress={() => setFolha('encerrar')} /> : null}
+          </View>
         </>
       ) : empresa ? (
         <T style={{ color: '#7A6A61', textAlign: 'center', padding: 22, fontSize: 13.5 }}>Você está vendo como empresa. Para se candidatar, use uma conta de freelancer.</T>
@@ -732,6 +820,25 @@ export default function DetalheVaga() {
           aoMudarBloqueio={setBloqueado}
         />
       ) : null}
+      <Folha visivel={!!formInstr} aoFechar={() => setFormInstr(null)} titulo="Informações para a equipe">
+        <T style={{ color: C.muted, lineHeight: 20 }}>Só quem for contratado vê. Deixe em branco o que não precisar.</T>
+        {formInstr ? <CamposInstrucoes valor={formInstr} aoMudar={setFormInstr} /> : null}
+        <Botao titulo="Salvar" onPress={gravarInstrucoes} estilo={{ marginTop: 18 }} />
+      </Folha>
+
+      <Folha visivel={folha === 'repetir'} aoFechar={() => setFolha(null)} titulo="Repetir na próxima semana">
+        <T style={{ color: C.muted, lineHeight: 21 }}>
+          Criamos o mesmo turno 7 dias depois{vaga.inicio_em ? ` (${new Date(new Date(vaga.inicio_em).getTime() + 7 * 864e5).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })})` : ''}, com as mesmas informações para a equipe.
+        </T>
+        {vaga.contratados > 0 ? (
+          <>
+            <Botao titulo={`Repetir e convidar a mesma equipe (${vaga.contratados})`} onPress={() => repetir(true)} carregando={repetindo} estilo={{ marginTop: 18 }} />
+            <Botao titulo="Repetir sem convidar" variante="fantasma" onPress={() => repetir(false)} desativado={repetindo} />
+          </>
+        ) : (
+          <Botao titulo="Criar turno da próxima semana" onPress={() => repetir(false)} carregando={repetindo} estilo={{ marginTop: 18 }} />
+        )}
+      </Folha>
     </Tela>
   );
 }

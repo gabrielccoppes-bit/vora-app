@@ -109,6 +109,9 @@ export default function Perfil() {
         </>
       ) : (
         <Grupo titulo="Minha atividade">
+          <Item icone="dinheiro" onPress={() => router.push('/ganhos')} sub="Quanto você ganhou, horas e turnos">
+            Meus ganhos
+          </Item>
           <Item icone="sino" onPress={() => router.push('/convites')} sub={nConvites ? `${nConvites} aguardando resposta` : 'Estabelecimentos que chamaram você'}>
             Convites
           </Item>

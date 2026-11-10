@@ -78,6 +78,7 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="relatorio" />
           <Stack.Screen name="admin" />
           <Stack.Screen name="notificacoes" />
+          <Stack.Screen name="ganhos" />
         </Stack.Protected>
         {/* Boas-vindas, login e cadastro */}
         <Stack.Protected guard={!sessao}>

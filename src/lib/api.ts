@@ -78,6 +78,7 @@ export type Vaga = {
   contratados: number; // mantido pelo banco
   completa: boolean; // fechou porque lotou
   substituto_auto: boolean;
+  serie_id: string | null; // turnos da mesma escala
   criado_em: string;
   empresa: PerfilResumo;
 };
@@ -393,7 +394,7 @@ export async function buscarVaga(id: string) {
   return ok<Vaga | null>(await supabase.from('vagas').select(VAGA_SEL).eq('id', id).maybeSingle());
 }
 export async function publicarVaga(
-  v: Omit<Vaga, 'id' | 'criado_em' | 'ativa' | 'empresa' | 'urgente' | 'inicio_em' | 'contratados' | 'completa'> & { urgente?: boolean; inicio_em?: string | null }
+  v: Omit<Vaga, 'id' | 'criado_em' | 'ativa' | 'empresa' | 'urgente' | 'inicio_em' | 'contratados' | 'completa' | 'serie_id'> & { urgente?: boolean; inicio_em?: string | null }
 ) {
   return ok<{ id: string }>(await supabase.from('vagas').insert(v).select('id').single());
 }
@@ -975,4 +976,57 @@ export async function progressoPerfil(p: Perfil): Promise<Passo[]> {
     { id: 'curriculo', titulo: 'Conte sua experiência', sub: 'Lugares onde trabalhou e cursos', feito: cert + exp > 0, rota: '/curriculo' },
     { id: 'verificar', titulo: 'Verifique sua identidade', sub: 'Ganhe o selo de verificado', feito: verificacao, rota: '/verificacao' },
   ];
+}
+
+/* ================= Escala (turnos que se repetem) ================= */
+type NovaVaga = Parameters<typeof publicarVaga>[0];
+/** Cria vários turnos de uma vez, ligados pela mesma escala */
+export async function publicarEscala(base: NovaVaga, inicios: string[]) {
+  const { randomUUID } = await import('expo-crypto');
+  const serie_id = randomUUID();
+  const linhas = inicios.map((inicio_em) => ({ ...base, inicio_em, urgente: false, serie_id }));
+  return ok<{ id: string; inicio_em: string }[]>(await supabase.from('vagas').insert(linhas).select('id, inicio_em').order('inicio_em'));
+}
+export type TurnoDaEscala = Pick<Vaga, 'id' | 'inicio_em' | 'contratados' | 'quantidade' | 'ativa' | 'completa'>;
+export async function turnosDaEscala(serieId: string) {
+  return ok<TurnoDaEscala[]>(
+    await supabase.from('vagas').select('id, inicio_em, contratados, quantidade, ativa, completa').eq('serie_id', serieId).order('inicio_em', { ascending: true }).limit(60)
+  );
+}
+/** Copia a vaga para a próxima semana e (opcional) convida quem trabalhou nela */
+export async function repetirVaga(id: string, convidar: boolean) {
+  const { data, error } = await supabase.rpc('repetir_vaga', { p_vaga: id, p_convidar: convidar });
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível repetir agora.');
+  return data as { id: string; convidados: number };
+}
+
+/* ================= O que levar no turno ================= */
+export type Instrucoes = { traje: string | null; levar: string | null; chegada: string | null; contato: string | null };
+export async function instrucoesDaVaga(vagaId: string) {
+  return ok<Instrucoes | null>(await supabase.from('vaga_instrucoes').select('traje, levar, chegada, contato').eq('vaga_id', vagaId).maybeSingle());
+}
+export async function salvarInstrucoes(vagaIds: string[], i: Instrucoes) {
+  const limpo = (x: string | null) => (x ?? '').trim() || null;
+  const dados = { traje: limpo(i.traje), levar: limpo(i.levar), chegada: limpo(i.chegada), contato: limpo(i.contato) };
+  if (!dados.traje && !dados.levar && !dados.chegada && !dados.contato) {
+    ok(await supabase.from('vaga_instrucoes').delete().in('vaga_id', vagaIds));
+    return;
+  }
+  ok(await supabase.from('vaga_instrucoes').upsert(vagaIds.map((vaga_id) => ({ vaga_id, ...dados, atualizado_em: new Date().toISOString() }))));
+}
+
+/* ================= Meus ganhos (freelancer) ================= */
+export type TurnoGanho = Candidatura & {
+  vaga: Pick<Vaga, 'id' | 'titulo' | 'valor_min' | 'valor_max' | 'periodo' | 'inicio_em' | 'criado_em'> & { empresa: PerfilResumo };
+};
+export async function meusTurnos(freelancerId: string) {
+  return ok<TurnoGanho[]>(
+    await supabase
+      .from('candidaturas')
+      .select('*, vaga:vagas(id, titulo, valor_min, valor_max, periodo, inicio_em, criado_em, empresa:perfis!vagas_empresa_id_fkey(id, nome, foto_v))')
+      .eq('freelancer_id', freelancerId)
+      .in('status', ['contratado', 'falta', 'cancelado_freela', 'cancelado_empresa'])
+      .order('criado_em', { ascending: false })
+      .limit(500)
+  ).filter((t) => t.vaga);
 }
