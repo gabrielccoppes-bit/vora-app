@@ -74,6 +74,10 @@ export type Vaga = {
   ativa: boolean;
   urgente: boolean;
   inicio_em: string | null;
+  quantidade: number; // quantas pessoas a vaga precisa
+  contratados: number; // mantido pelo banco
+  completa: boolean; // fechou porque lotou
+  substituto_auto: boolean;
   criado_em: string;
   empresa: PerfilResumo;
 };
@@ -388,8 +392,18 @@ export async function candidaturasRecebidas(empresaId: string, limite = 6) {
 export async function buscarVaga(id: string) {
   return ok<Vaga | null>(await supabase.from('vagas').select(VAGA_SEL).eq('id', id).maybeSingle());
 }
-export async function publicarVaga(v: Omit<Vaga, 'id' | 'criado_em' | 'ativa' | 'empresa' | 'urgente' | 'inicio_em'> & { urgente?: boolean; inicio_em?: string | null }) {
+export async function publicarVaga(
+  v: Omit<Vaga, 'id' | 'criado_em' | 'ativa' | 'empresa' | 'urgente' | 'inicio_em' | 'contratados' | 'completa'> & { urgente?: boolean; inicio_em?: string | null }
+) {
   return ok<{ id: string }>(await supabase.from('vagas').insert(v).select('id').single());
+}
+/** Muda quantas pessoas a vaga precisa (o banco fecha/reabre sozinho) */
+export async function mudarQuantidade(id: string, quantidade: number) {
+  const { error } = await supabase.from('vagas').update({ quantidade }).eq('id', id);
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível alterar agora.');
+}
+export async function alternarSubstituto(id: string, ligado: boolean) {
+  ok(await supabase.from('vagas').update({ substituto_auto: ligado }).eq('id', id));
 }
 export async function encerrarVaga(id: string) {
   ok(await supabase.from('vagas').update({ ativa: false }).eq('id', id));
@@ -642,9 +656,10 @@ export type Convite = {
   freelancer_id: string;
   mensagem: string | null;
   status: 'pendente' | 'aceito' | 'recusado';
+  substituicao: boolean;
   criado_em: string;
   respondido_em: string | null;
-  vaga?: Pick<Vaga, 'id' | 'titulo' | 'valor_min' | 'valor_max' | 'periodo' | 'inicio_em' | 'ativa' | 'urgente'> & { empresa: PerfilResumo };
+  vaga?: Pick<Vaga, 'id' | 'titulo' | 'valor_min' | 'valor_max' | 'periodo' | 'inicio_em' | 'ativa' | 'urgente' | 'quantidade' | 'contratados' | 'completa'> & { empresa: PerfilResumo };
   freelancer?: PerfilResumo;
 };
 export async function convidar(vagaId: string, empresaId: string, freelancerId: string, mensagem: string) {
@@ -655,7 +670,7 @@ export async function meusConvites(freelancerId: string) {
   return ok<Convite[]>(
     await supabase
       .from('convites')
-      .select('*, vaga:vagas(id, titulo, valor_min, valor_max, periodo, inicio_em, ativa, urgente, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, cancelamentos))')
+      .select('*, vaga:vagas(id, titulo, valor_min, valor_max, periodo, inicio_em, ativa, urgente, quantidade, contratados, completa, empresa:perfis!vagas_empresa_id_fkey(id, nome, titulo, cidade, uf, verificado, nota_media, nota_total, foto_v, cancelamentos))')
       .eq('freelancer_id', freelancerId)
       .order('criado_em', { ascending: false })
       .limit(100)

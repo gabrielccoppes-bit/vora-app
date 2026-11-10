@@ -35,6 +35,8 @@ export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: bool
       <View style={{ flexDirection: 'row', gap: 7, flexWrap: 'wrap' }}>
         <Tag texto={vaga.modalidade} />
         <Tag texto={vaga.contrato} />
+        {vaga.quantidade > 1 ? <Tag texto={`${vaga.quantidade - (vaga.contratados ?? 0)} de ${vaga.quantidade} vagas`} /> : null}
+        {!urgenteAtiva(vaga) && vaga.inicio_em && new Date(vaga.inicio_em).getTime() > Date.now() ? <Tag texto={quandoComeca(vaga.inicio_em)} /> : null}
       </View>
       <View style={[st.linha, { marginTop: 12, justifyContent: 'space-between' }]}>
         <T style={{ color: C.ink2, fontFamily: F.interMed, fontSize: 14.5 }}>{faixaSalarial(vaga)}</T>

@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { NotaResumo } from '@/components/avaliacao';
+import { Icone } from '@/components/icone';
 import { Avatar, Botao, Carregando, T, Tela, Topo, useToast, Vazio } from '@/components/ui';
 import { faixaSalarial, fotoUrl, meusConvites, quandoComeca, responderConvite, type Convite } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
@@ -50,6 +51,12 @@ export default function Convites() {
           <>
             {pendentes.map((c) => (
               <View key={c.id} style={{ backgroundColor: C.card, borderRadius: 20, borderWidth: 1.5, borderColor: C.orange, padding: 16 }}>
+                {c.substituicao ? (
+                  <View style={{ alignSelf: 'flex-start', flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: C.orange, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, marginBottom: 12 }}>
+                    <Icone nome="raio" tamanho={13} cor={C.onOrange} preenchido />
+                    <T style={{ color: C.onOrange, fontSize: 12, fontFamily: F.interSemi }}>SUBSTITUIÇÃO · QUEM ACEITAR PRIMEIRO FICA</T>
+                  </View>
+                ) : null}
                 <Pressable onPress={() => router.push(`/estabelecimento/${c.empresa_id}`)} style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
                   <Avatar nome={c.vaga!.empresa.nome} quadrado tamanho={46} foto={fotoUrl(c.vaga!.empresa)} />
                   <View style={{ flex: 1 }}>
@@ -69,7 +76,9 @@ export default function Convites() {
                   <Botao titulo="Recusar" variante="contorno" onPress={() => responder(c, false)} estilo={{ flex: 1, height: 46 }} />
                   <Botao titulo="Aceitar" onPress={() => responder(c, true)} carregando={respondendo === c.id} estilo={{ flex: 1, height: 46 }} />
                 </View>
-                <T style={{ color: C.muted2, fontSize: 12, marginTop: 10, textAlign: 'center' }}>Ao aceitar, você já fica contratado(a) para essa vaga.</T>
+                <T style={{ color: C.muted2, fontSize: 12, marginTop: 10, textAlign: 'center' }}>
+                  {c.vaga!.quantidade > 1 ? `Restam ${c.vaga!.quantidade - c.vaga!.contratados} de ${c.vaga!.quantidade} lugares. ` : ''}Ao aceitar, você já fica contratado(a).
+                </T>
               </View>
             ))}
             {outros.length ? <T style={{ color: C.orange2, fontFamily: F.interSemi, fontSize: 12, letterSpacing: 1.1, marginTop: 10 }}>ANTERIORES</T> : null}

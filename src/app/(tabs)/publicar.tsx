@@ -1,11 +1,11 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Botao, Campo, Carregando, Chip, Escolha, Interruptor, T, Tela, Topo, useToast } from '@/components/ui';
 import { meuServico, publicarVaga, salvarServico, type Vaga } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
-import { digitos, dinheiro } from '@/lib/validacao';
+import { dataISO, digitos, dinheiro } from '@/lib/validacao';
 import { SeletorAreas } from '@/components/areas';
 import { C, CATEGORIAS, CONTRATOS, F, HOSPITALIDADE, MODALIDADES, NIVEIS, PERIODOS } from '@/theme';
 
@@ -28,6 +28,9 @@ function PublicarVaga() {
   const [urgente, setUrgente] = useState(false);
   const [dia, setDia] = useState<'hoje' | 'amanha'>('hoje');
   const [hora, setHora] = useState('');
+  const [data, setData] = useState(''); // turno com data marcada (vagas normais)
+  const [qtd, setQtd] = useState(1);
+  const [substituto, setSubstituto] = useState(true);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
   const set = (k: keyof typeof f) => (v: string) => {
@@ -56,6 +59,18 @@ function PublicarVaga() {
         if (d.getTime() < Date.now() - 3600e3) e.hora = 'Esse horário já passou. Escolha "Amanhã" ou outro horário.';
         else inicio = d.toISOString();
       }
+    } else if (data || hora) {
+      // data do turno é opcional, mas se informar precisa da data e da hora
+      const iso = dataISO(data);
+      const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hora);
+      if (!iso) e.data = 'Use o formato DD/MM/AAAA.';
+      if (!m) e.hora = 'Use o formato 20:00.';
+      if (iso && m) {
+        const [a, mo, d] = iso.split('-').map(Number);
+        const dt = new Date(a, mo - 1, d, Number(m[1]), Number(m[2]));
+        if (dt.getTime() < Date.now() - 3600e3) e.data = 'Essa data já passou.';
+        else inicio = dt.toISOString();
+      }
     }
     setErros(e);
     if (Object.keys(e).length) return toast('Confira os campos destacados');
@@ -76,10 +91,14 @@ function PublicarVaga() {
         requisitos: f.requisitos.split(',').map((x) => x.trim()).filter(Boolean),
         urgente,
         inicio_em: inicio,
+        quantidade: qtd,
+        substituto_auto: substituto,
       });
       setF(vazio);
       setUrgente(false);
       setHora('');
+      setData('');
+      setQtd(1);
       toast(urgente ? 'Vaga urgente publicada! Avisamos os freelancers da cidade.' : 'Vaga publicada!');
       router.push(`/vaga/${id}`);
     } catch (err) {
@@ -122,6 +141,52 @@ function PublicarVaga() {
             />
           </View>
         ) : null}
+        {!urgente ? (
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Campo
+              rotulo="Data do turno (opcional)"
+              valor={data}
+              aoMudar={(v) => (setData(v), erros.data && setErros((x) => ({ ...x, data: '' })))}
+              mascara="data"
+              keyboardType="number-pad"
+              placeholder="DD/MM/AAAA"
+              erro={erros.data}
+              estilo={{ flex: 1.4 }}
+            />
+            <Campo
+              rotulo="Início"
+              valor={hora}
+              aoMudar={(v) => (setHora(v), erros.hora && setErros((x) => ({ ...x, hora: '' })))}
+              mascara="hora"
+              keyboardType="number-pad"
+              placeholder="20:00"
+              erro={erros.hora}
+              estilo={{ flex: 1 }}
+            />
+          </View>
+        ) : null}
+        {!urgente ? <T style={{ color: C.muted2, fontSize: 12.5, marginTop: 6 }}>Com data e horário, o Vora lembra a equipe antes do turno e libera o check-in na hora certa.</T> : null}
+
+        <View style={{ marginTop: 14 }}>
+          <T style={{ color: C.muted, fontSize: 13, fontFamily: F.interMed, marginBottom: 8 }}>Quantas pessoas você precisa?</T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Pressable onPress={() => setQtd((n) => Math.max(1, n - 1))} style={st.passo} accessibilityLabel="Menos uma pessoa">
+              <T style={{ fontSize: 22, fontFamily: F.interSemi }}>−</T>
+            </Pressable>
+            <T style={{ fontFamily: F.soraSemi, fontSize: 24, minWidth: 34, textAlign: 'center' }}>{qtd}</T>
+            <Pressable onPress={() => setQtd((n) => Math.min(50, n + 1))} style={st.passo} accessibilityLabel="Mais uma pessoa">
+              <T style={{ fontSize: 22, fontFamily: F.interSemi }}>+</T>
+            </Pressable>
+            <T style={{ color: C.muted, fontSize: 13, flex: 1 }}>{qtd === 1 ? 'pessoa' : 'pessoas · a vaga fecha sozinha quando completar'}</T>
+          </View>
+        </View>
+        <Interruptor
+          titulo="Substituto automático"
+          sub="Se alguém cancelar, convidamos na hora seus favoritos e quem já se candidatou. O primeiro que aceitar entra."
+          valor={substituto}
+          aoMudar={setSubstituto}
+        />
+
         <Campo rotulo="Título da vaga" valor={f.titulo} aoMudar={set('titulo')} placeholder={casa ? 'Ex.: Bartender para sexta e sábado' : 'Ex.: Desenvolvedor(a) Front-End'} erro={erros.titulo} />
         <Escolha rotulo="Categoria" valor={f.area} opcoes={CATEGORIAS} aoMudar={set('area')} erro={erros.area} />
         <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -224,3 +289,7 @@ function PublicarServico() {
     </Tela>
   );
 }
+
+const st = StyleSheet.create({
+  passo: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: C.stroke, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card },
+});

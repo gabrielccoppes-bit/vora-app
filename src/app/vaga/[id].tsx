@@ -14,7 +14,9 @@ import {
   buscarVaga,
   candidatar,
   candidatosDaVaga,
+  alternarSubstituto,
   confirmarPresenca,
+  mudarQuantidade,
   convitesDaVaga,
   duracao,
   horaCurta,
@@ -134,14 +136,15 @@ export default function DetalheVaga() {
     try {
       await definirStatus(c.id, status);
       setCandidatos((l) => l.map((x) => (x.id === c.id ? { ...x, status } : x)));
+      recarregarVaga();
       if (status === 'contratado' && c.status !== 'falta') {
         // avisa o freelancer pelo chat
         const conversa = await abrirConversa(c.freelancer_id);
         await enviarMensagem(conversa, `Olá, ${c.freelancer?.nome?.split(' ')[0] ?? ''}! Você foi contratado(a) para "${vaga.titulo}". Vamos combinar os detalhes por aqui?`);
         toast('Contratado! Avisamos pelo chat.');
       } else if (status === 'recusado') toast('Candidatura recusada');
-    } catch {
-      toast('Não foi possível atualizar. Tente de novo.');
+    } catch (e) {
+      toast((e as Error).message || 'Não foi possível atualizar. Tente de novo.');
     } finally {
       setDecidindo(null);
     }
@@ -236,8 +239,25 @@ export default function DetalheVaga() {
     listarFavoritos(perfil.id).then(setFavoritos).catch(() => setFavoritos([]));
   }
 
+  async function recarregarVaga() {
+    if (!vaga) return;
+    const v = await buscarVaga(vaga.id).catch(() => null);
+    if (v) setVaga(v);
+  }
+
+  async function mudarQtd(n: number) {
+    if (!vaga || n < 1 || n > 50) return;
+    try {
+      await mudarQuantidade(vaga.id, n);
+      await recarregarVaga();
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  }
+
   async function recarregarCandidatos() {
     if (vaga) setCandidatos(await candidatosDaVaga(vaga.id));
+    recarregarVaga();
   }
 
   async function conversarCom(outroId: string, nome: string) {
@@ -316,8 +336,8 @@ export default function DetalheVaga() {
 
       <View style={st.hr} />
       <View style={{ paddingHorizontal: 22 }}>
-        {vaga.urgente && vaga.inicio_em ? <Meta icone="raio" texto={`Começa ${quandoComeca(vaga.inicio_em)}`} /> : null}
-        <Meta icone="relogio" texto={vaga.ativa ? `Publicada ${tempoRelativo(vaga.criado_em)}` : 'Vaga encerrada'} />
+        {vaga.inicio_em ? <Meta icone={vaga.urgente ? 'raio' : 'relogio'} texto={`Começa ${quandoComeca(vaga.inicio_em)}`} /> : null}
+        <Meta icone="relogio" texto={vaga.completa ? 'Equipe completa' : vaga.ativa ? `Publicada ${tempoRelativo(vaga.criado_em)}` : 'Vaga encerrada'} />
         <Meta
           icone="local"
           texto={(() => {
@@ -329,6 +349,50 @@ export default function DetalheVaga() {
         <Meta icone="maleta" texto={vaga.duracao} />
         <Meta icone="pessoas" texto={`${total} candidatura${total === 1 ? '' : 's'}`} />
       </View>
+
+      {vaga.quantidade > 1 || dono ? (
+        <View style={st.lotacao}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <T style={{ color: C.ink, fontFamily: F.interSemi, fontSize: 15.5 }}>
+              Equipe: {vaga.contratados} de {vaga.quantidade} {vaga.quantidade === 1 ? 'pessoa' : 'pessoas'}
+            </T>
+            {dono ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Pressable onPress={() => mudarQtd(vaga.quantidade - 1)} style={st.passo} accessibilityLabel="Precisa de uma pessoa a menos">
+                  <T style={{ color: C.ink, fontSize: 18, fontFamily: F.interSemi }}>−</T>
+                </Pressable>
+                <Pressable onPress={() => mudarQtd(vaga.quantidade + 1)} style={st.passo} accessibilityLabel="Precisa de mais uma pessoa">
+                  <T style={{ color: C.ink, fontSize: 18, fontFamily: F.interSemi }}>+</T>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+          <View style={{ height: 8, borderRadius: 4, backgroundColor: '#EADBCF', marginTop: 10, overflow: 'hidden' }}>
+            <View style={{ width: `${Math.min(100, (vaga.contratados / vaga.quantidade) * 100)}%`, height: 8, backgroundColor: vaga.completa ? '#1F7A4C' : C.orange }} />
+          </View>
+          <T style={{ color: '#7A6A61', fontSize: 13, marginTop: 8 }}>
+            {vaga.completa
+              ? dono
+                ? 'Equipe completa: a vaga saiu da busca. Se alguém cancelar, ela reabre sozinha.'
+                : 'Equipe completa.'
+              : `Faltam ${vaga.quantidade - vaga.contratados} ${vaga.quantidade - vaga.contratados === 1 ? 'pessoa' : 'pessoas'}.`}
+          </T>
+          {dono ? (
+            <Pressable
+              onPress={async () => {
+                const novo = !vaga.substituto_auto;
+                setVaga({ ...vaga, substituto_auto: novo });
+                await alternarSubstituto(vaga.id, novo).catch(() => setVaga({ ...vaga }));
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 }}>
+              <View style={[st.caixa, vaga.substituto_auto && { backgroundColor: C.orange, borderColor: C.orange }]}>
+                {vaga.substituto_auto ? <Icone nome="check" tamanho={13} cor={C.onOrange} espessura={3} /> : null}
+              </View>
+              <T style={{ color: C.ink2, fontSize: 13.5, flex: 1 }}>Substituto automático se alguém cancelar</T>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {dono ? (
         <>
@@ -559,7 +623,7 @@ export default function DetalheVaga() {
           ) : minha ? (
             <Botao titulo={`Candidatura enviada ${tempoRelativo(minha.criado_em)}`} icone="check" variante="feito" desativado />
           ) : (
-            <Botao titulo="Candidatar-se" onPress={() => setFolha('candidatar')} desativado={!vaga.ativa} />
+            <Botao titulo={vaga.completa ? 'Vaga preenchida' : vaga.ativa ? 'Candidatar-se' : 'Vaga encerrada'} onPress={() => setFolha('candidatar')} desativado={!vaga.ativa} />
           )}
           <Botao titulo={salva ? 'Vaga salva' : 'Salvar vaga'} icone="salvar" variante="contornoEscuro" onPress={alternarSalva} />
         </View>
@@ -693,6 +757,9 @@ const st = StyleSheet.create({
   cand: { backgroundColor: '#fff', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#ECDCCF' },
   mini: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: C.ink },
   acoes: { paddingHorizontal: 22, paddingTop: 22, gap: 12 },
+  lotacao: { marginHorizontal: 22, marginTop: 16, padding: 16, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#EADBCF' },
+  passo: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: '#E3D2C4', alignItems: 'center', justifyContent: 'center' },
+  caixa: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#C9B6A8', alignItems: 'center', justifyContent: 'center' },
   presenca: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0E3D8' },
   turno: { backgroundColor: '#fff', borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: C.orange },
 });

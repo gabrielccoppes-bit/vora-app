@@ -32,6 +32,8 @@ const ICONES: Record<string, NomeIcone> = {
   verificacao: 'escudo',
   urgente: 'raio',
   presenca: 'local',
+  substituto: 'pessoas',
+  lembrete: 'relogio',
 };
 
 /** Central de avisos: tudo o que aconteceu com você no Vora */
