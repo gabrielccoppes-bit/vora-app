@@ -17,10 +17,10 @@ begin
     from public.candidaturas c join public.vagas v on v.id = c.vaga_id
    where c.freelancer_id = p_id and c.status = 'contratado';
 
-  if p.nota_total >= 3 and p.nota_media >= 4.8 then s := s || 'top'; end if;
-  if concluidos >= 5 and p.faltas = 0 and p.cancelamentos = 0 then s := s || 'presenca'; end if;
-  if com_horario >= 5 and pontuais >= ceil(com_horario * 0.9) then s := s || 'pontual'; end if;
-  if concluidos >= 20 then s := s || 'veterano'; end if;
+  if p.nota_total >= 3 and p.nota_media >= 4.8 then s := array_append(s, 'top'); end if;
+  if concluidos >= 5 and p.faltas = 0 and p.cancelamentos = 0 then s := array_append(s, 'presenca'); end if;
+  if com_horario >= 5 and pontuais >= ceil(com_horario * 0.9) then s := array_append(s, 'pontual'); end if;
+  if concluidos >= 20 then s := array_append(s, 'veterano'); end if;
 
   update public.perfis set selos = s where id = p_id and selos is distinct from s;
 end $$;

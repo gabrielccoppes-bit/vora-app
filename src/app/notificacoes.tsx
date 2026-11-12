@@ -35,6 +35,8 @@ const ICONES: Record<string, NomeIcone> = {
   substituto: 'pessoas',
   lembrete: 'relogio',
   indicacao: 'enviar',
+  elogio: 'estrela',
+  volta: 'inicio',
 };
 
 /** Central de avisos: tudo o que aconteceu com você no Vora */

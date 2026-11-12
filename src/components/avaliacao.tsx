@@ -10,7 +10,7 @@ import { Botao, Campo, Chip, Folha, T, useToast } from './ui';
 /** Destaques do estabelecimento sobre o freelancer */
 export const DESTAQUES = ['Pontual', 'Profissional', 'Simpático(a)', 'Ágil', 'Trabalha bem em equipe', 'Voltaria a contratar'];
 /** Destaques do freelancer sobre o estabelecimento */
-export const DESTAQUES_ESTAB = ['Pagou em dia', 'Ambiente bom', 'Equipe acolhedora', 'Organizado', 'Respeitou o combinado', 'Trabalharia de novo'];
+export const DESTAQUES_ESTAB = ['Pagou em dia', 'Ambiente bom', 'Equipe acolhedora', 'Organizado', 'Respeitou o combinado', 'Deu refeição', 'Volta segura', 'Trabalharia de novo'];
 
 /** ★★★★☆ */
 export function Estrelas({ nota, tamanho = 16, cor = C.orange }: { nota: number; tamanho?: number; cor?: string }) {

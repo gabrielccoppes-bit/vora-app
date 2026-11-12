@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { faixaSalarial, quandoComeca, urgenteAtiva, type Servico, type Vaga, fotoUrl } from '@/lib/api';
+import { TRANSPORTE, faixaSalarial, quandoComeca, urgenteAtiva, type Servico, type Vaga, fotoUrl } from '@/lib/api';
 import { distanciaAte, fmtDistancia, useLocalizacao } from '@/lib/localizacao';
 import { dinheiro, tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
@@ -37,6 +37,7 @@ export function CartaoVaga({ vaga, salvo, aoSalvar }: { vaga: Vaga; salvo?: bool
         <Tag texto={vaga.modalidade} />
         <Tag texto={vaga.contrato} />
         {vaga.quantidade > 1 ? <Tag texto={`${vaga.quantidade - (vaga.contratados ?? 0)} de ${vaga.quantidade} vagas`} /> : null}
+        {vaga.transporte === 'pago' || vaga.transporte === 'ajuda' ? <Tag texto={`🚗 ${TRANSPORTE[vaga.transporte].curto}`} /> : null}
         {!urgenteAtiva(vaga) && vaga.inicio_em && new Date(vaga.inicio_em).getTime() > Date.now() ? <Tag texto={quandoComeca(vaga.inicio_em)} /> : null}
       </View>
       <View style={[st.linha, { marginTop: 12, justifyContent: 'space-between' }]}>

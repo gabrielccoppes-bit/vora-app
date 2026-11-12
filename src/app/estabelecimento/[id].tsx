@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { FolhaDenunciar, LinhaReputacao } from '@/components/acoes';
 import { CartaoAvaliacao, Estrelas, NotaResumo } from '@/components/avaliacao';
 import { CartaoVaga } from '@/components/cartoes';
+import { Selos } from '@/components/selos';
 import { Icone } from '@/components/icone';
 import { Avatar, BotaoIcone, Carregando, T, Tela, Topo, Vazio } from '@/components/ui';
 import { avaliacoesDoEstabelecimento, idsBloqueados, perfilPublico, vagasDoEstabelecimento, type Avaliacao, type Perfil, type Vaga, fotoUrl } from '@/lib/api';
@@ -55,6 +56,9 @@ export default function Estabelecimento() {
   const km = distanciaAte(ponto, p);
   const dist = [5, 4, 3, 2, 1].map((n) => ({ n, q: (avals ?? []).filter((a) => a.nota === n).length }));
   const maxQ = Math.max(1, ...dist.map((d) => d.q));
+  const contagem = new Map<string, number>();
+  (avals ?? []).forEach((a) => a.tags.forEach((t) => contagem.set(t, (contagem.get(t) ?? 0) + 1)));
+  const destaques = [...contagem.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   return (
     <Tela clara>
@@ -77,6 +81,11 @@ export default function Estabelecimento() {
           <LinhaReputacao cancelamentos={p.cancelamentos} empresa clara />
         </View>
         {p.verificado ? <T style={{ color: '#2E7D4F', fontSize: 13, marginTop: 4 }}>✓ Estabelecimento verificado</T> : null}
+        {p.selos?.length ? (
+          <View style={{ marginTop: 10 }}>
+            <Selos selos={p.selos} clara />
+          </View>
+        ) : null}
         {bloqueado ? <T style={{ color: '#7A6A61', fontSize: 13, marginTop: 8 }}>Você bloqueou este estabelecimento.</T> : null}
       </View>
 
@@ -112,6 +121,17 @@ export default function Estabelecimento() {
                 ))}
               </View>
             </View>
+            {destaques.length ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {destaques.map(([t, n]) => (
+                  <View key={t} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#FFE7DA' }}>
+                    <T style={{ color: '#B4400B', fontSize: 12.5, fontFamily: F.interSemi }}>
+                      {t} · {n}
+                    </T>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <View style={{ gap: 10 }}>
               {avals.map((a) => (
                 <CartaoAvaliacao key={a.id} a={a} />

@@ -24,6 +24,7 @@ export type Perfil = {
   suspenso: boolean; // suspensa pela moderação
   selos: string[]; // selos de destaque (calculados pelo banco)
   codigo: string | null; // código de indicação
+  elogios_total: number; // elogios de clientes (gorjeta/QR)
   faltas: number; // freelancer: faltas marcadas pelos contratantes
   cancelamentos: number; // contratações canceladas por esta conta
   criado_em: string;
@@ -60,6 +61,14 @@ type PerfilResumo = Pick<Perfil, 'id' | 'nome' | 'titulo' | 'cidade' | 'uf' | 'v
   selos?: string[];
 };
 
+export type Transporte = 'nao_informado' | 'pago' | 'ajuda' | 'nao';
+export const TRANSPORTE: Record<Transporte, { curto: string; longo: string }> = {
+  pago: { curto: 'Volta paga', longo: 'A casa paga o transporte de volta' },
+  ajuda: { curto: 'Ajuda na volta', longo: 'A casa dá ajuda de custo para a volta' },
+  nao: { curto: 'Sem transporte', longo: 'Sem transporte de volta' },
+  nao_informado: { curto: '', longo: 'Transporte de volta não informado' },
+};
+
 export type Vaga = {
   id: string;
   empresa_id: string;
@@ -82,6 +91,7 @@ export type Vaga = {
   completa: boolean; // fechou porque lotou
   substituto_auto: boolean;
   serie_id: string | null; // turnos da mesma escala
+  transporte: Transporte; // volta para casa no fim do turno
   criado_em: string;
   empresa: PerfilResumo;
 };
@@ -130,6 +140,9 @@ export type Candidatura = {
   checkin_dist_m?: number | null;
   checkout_dist_m?: number | null;
   presenca_por?: 'gps' | 'estabelecimento' | null;
+  dividir_volta?: boolean;
+  bairro_volta?: string | null;
+  chegou_em?: string | null;
   criado_em: string;
   freelancer?: PerfilResumo;
   avaliacao?: Pick<Avaliacao, 'id' | 'nota' | 'tags' | 'comentario'> | null;
@@ -407,7 +420,7 @@ export async function buscarVaga(id: string) {
   return ok<Vaga | null>(await supabase.from('vagas').select(VAGA_SEL).eq('id', id).maybeSingle());
 }
 export async function publicarVaga(
-  v: Omit<Vaga, 'id' | 'criado_em' | 'ativa' | 'empresa' | 'urgente' | 'inicio_em' | 'contratados' | 'completa' | 'serie_id'> & { urgente?: boolean; inicio_em?: string | null }
+  v: Omit<Vaga, 'id' | 'criado_em' | 'ativa' | 'empresa' | 'urgente' | 'inicio_em' | 'contratados' | 'completa' | 'serie_id' | 'transporte'> & { urgente?: boolean; inicio_em?: string | null; transporte?: Transporte }
 ) {
   return ok<{ id: string }>(await supabase.from('vagas').insert(v).select('id').single());
 }
@@ -1050,6 +1063,7 @@ export const SELOS: Record<string, { nome: string; descricao: string }> = {
   presenca: { nome: '100% presença', descricao: '5 ou mais turnos sem nenhuma falta ou cancelamento' },
   pontual: { nome: 'Pontual', descricao: 'Chega no horário em 90% dos turnos (check-in)' },
   veterano: { nome: 'Veterano', descricao: '20 ou mais turnos pelo Vora' },
+  casa_vora: { nome: 'Casa Vora', descricao: 'Nota 4,5+ dos freelancers (3 ou mais), paga em dia e quase não cancela' },
 };
 
 /* ================= Termo de prestação de serviço ================= */
@@ -1114,4 +1128,58 @@ export async function termosDaVaga(vagaId: string) {
     await supabase.from('termos_servico').select('id, candidatura_id, aceite_freela_em').eq('vaga_id', vagaId)
   );
   return new Map(l.map((t) => [t.candidatura_id, t]));
+}
+
+/* ================= Gorjeta e elogios do cliente ================= */
+const SITE = 'https://gabrielccoppes-bit.github.io/vora-app';
+export const linkGorjeta = (codigo: string) => `${SITE}/g/${codigo}`;
+export const ELOGIOS_CLIENTE = ['Atendimento incrível', 'Muito simpático(a)', 'Rápido(a)', 'Ótimas indicações', 'Drinks perfeitos', 'Cuidadoso(a)'];
+export type GorjetaConfig = { freelancer_id: string; ativo: boolean; pix_chave: string | null; pix_nome: string | null };
+export type Elogio = { id: string; freelancer_id: string; tags: string[]; texto: string | null; autor: string | null; oculto: boolean; criado_em: string };
+export type PaginaGorjeta = {
+  id: string; nome: string; titulo: string | null; cidade: string; foto_v: number | null; selos: string[]; elogios_total: number;
+  pix_chave: string | null; pix_nome: string | null;
+  ultimos: { tags: string[]; texto: string | null; autor: string | null; criado_em: string }[];
+};
+export async function minhaGorjeta(id: string) {
+  return ok<GorjetaConfig | null>(await supabase.from('gorjeta_config').select('freelancer_id, ativo, pix_chave, pix_nome').eq('freelancer_id', id).maybeSingle());
+}
+export async function salvarGorjeta(c: GorjetaConfig) {
+  ok(await supabase.from('gorjeta_config').upsert({ ...c, atualizado_em: new Date().toISOString() }));
+}
+/** Página pública (funciona sem login) */
+export async function paginaGorjeta(codigo: string) {
+  return ok<PaginaGorjeta | null>(await supabase.rpc('pagina_gorjeta', { p_codigo: codigo }));
+}
+export async function deixarElogio(codigo: string, tags: string[], texto: string, autor: string) {
+  const { error } = await supabase.rpc('deixar_elogio', { p_codigo: codigo, p_tags: tags, p_texto: texto, p_autor: autor });
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível enviar agora. Tente de novo.');
+}
+export async function elogiosDoFreela(id: string, limite = 20) {
+  return ok<Elogio[]>(await supabase.from('elogios').select('*').eq('freelancer_id', id).order('criado_em', { ascending: false }).limit(limite));
+}
+export async function ocultarElogio(id: string, oculto: boolean) {
+  ok(await supabase.from('elogios').update({ oculto }).eq('id', id));
+}
+
+/* ================= Volta para casa ================= */
+export async function definirVolta(candidaturaId: string, dividir: boolean, bairro: string) {
+  const { error } = await supabase.rpc('definir_volta', { p_candidatura: candidaturaId, p_dividir: dividir, p_bairro: bairro });
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível salvar agora.');
+}
+export async function marcarCheguei(candidaturaId: string) {
+  ok(await supabase.rpc('marcar_cheguei', { p_candidatura: candidaturaId }));
+}
+export type ColegaVolta = { freelancer_id: string; nome: string; foto_v: number | null; bairro: string };
+export async function colegasDeVolta(vagaId: string) {
+  return ok<ColegaVolta[]>(await supabase.rpc('colegas_de_volta', { p_vaga: vagaId }));
+}
+
+/* ================= Ranking das casas ================= */
+export type CasaRanking = {
+  id: string; nome: string; titulo: string | null; cidade: string; uf: string; foto_v: number | null; verificado: boolean;
+  nota_media: number | null; nota_total: number; selos: string[]; destaques: { tag: string; n: number }[]; pontuacao: number;
+};
+export async function rankingCasas(uf?: string | null, cidade?: string | null) {
+  return ok<CasaRanking[]>(await supabase.rpc('ranking_casas', { p_uf: uf ?? null, p_cidade: cidade ?? null }));
 }

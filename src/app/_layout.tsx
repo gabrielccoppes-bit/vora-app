@@ -87,6 +87,8 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="ganhos" />
           <Stack.Screen name="termo/[id]" />
           <Stack.Screen name="indicar" />
+          <Stack.Screen name="gorjeta" />
+          <Stack.Screen name="ranking" />
         </Stack.Protected>
         {/* Boas-vindas, login e cadastro */}
         <Stack.Protected guard={!sessao}>
@@ -97,6 +99,8 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="cadastro-empresa" />
         </Stack.Protected>
         <Stack.Screen name="termos" options={{ presentation: 'modal' }} />
+        {/* Página pública do QR de gorjeta (com ou sem login) */}
+        <Stack.Screen name="g/[codigo]" options={{ animation: 'fade' }} />
         {/* Aberta pelo link do e-mail (com ou sem login) */}
         <Stack.Screen name="nova-senha" options={{ animation: 'fade' }} />
       </Stack>

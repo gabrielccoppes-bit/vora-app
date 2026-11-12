@@ -8,7 +8,7 @@ import { FolhaConvidar, FolhaDenunciar, GradeDisponibilidade, LinhaReputacao } f
 import { CartaoAvaliacao, Estrelas, NotaResumo } from '@/components/avaliacao';
 import { Icone, type NomeIcone } from '@/components/icone';
 import { Avatar, Botao, BotaoIcone, Carregando, T, Tag, Tela, Topo, useToast, Vazio } from '@/components/ui';
-import {
+import { elogiosDoFreela, type Elogio,
   abrirConversa,
   alternarFavorito,
   avaliacoesDoFreelancer,
@@ -29,6 +29,7 @@ import {
 } from '@/lib/api';
 import { useSessao } from '@/lib/sessao';
 import { dinheiro } from '@/lib/validacao';
+import { tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
 
 /** Perfil público do freelancer: serviço + avaliações de estabelecimentos.
@@ -47,6 +48,7 @@ export default function PerfilFreelancer() {
   const [bloqueado, setBloqueado] = useState(false);
   const [menu, setMenu] = useState(false);
   const [convidar, setConvidar] = useState(false);
+  const [elogios, setElogios] = useState<Elogio[]>([]);
   const toast = useToast();
   const souEmpresa = eu?.tipo === 'empresa';
 
@@ -74,6 +76,7 @@ export default function PerfilFreelancer() {
           setExps(ex);
           setFavorito(favs.has(freelaId));
           setBloqueado(bloq.has(freelaId));
+          elogiosDoFreela(freelaId, 3).then(setElogios).catch(() => setElogios([]));
         } catch {
           setP(null);
         }
@@ -286,6 +289,32 @@ export default function PerfilFreelancer() {
           </>
         )}
       </View>
+
+      {elogios.length ? (
+        <>
+          <Divisor />
+          <View style={{ paddingHorizontal: 22, paddingTop: 10 }}>
+            <T style={{ color: C.ink, fontFamily: F.soraSemi, fontSize: 18 }}>Elogios de clientes 💛</T>
+            <T style={{ color: '#7A6A61', fontSize: 13, marginTop: 2 }}>
+              {p.elogios_total} {p.elogios_total === 1 ? 'elogio' : 'elogios'} deixados por clientes atendidos{meu ? ' · ' : ''}
+              {meu ? (
+                <T style={{ color: C.orange, fontSize: 13, fontFamily: F.interSemi }} onPress={() => router.push('/gorjeta')}>
+                  ver QR Code
+                </T>
+              ) : null}
+            </T>
+            {elogios.map((e) => (
+              <View key={e.id} style={{ marginTop: 10, padding: 14, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ECDCCF' }}>
+                {e.tags.length ? <T style={{ color: '#B4400B', fontSize: 13 }}>{e.tags.join(' · ')}</T> : null}
+                {e.texto ? <T style={{ color: C.ink, marginTop: 2, lineHeight: 20 }}>“{e.texto}”</T> : null}
+                <T style={{ color: '#7A6A61', fontSize: 12, marginTop: 4 }}>
+                  {e.autor ?? 'Cliente'} · {tempoRelativo(e.criado_em)}
+                </T>
+              </View>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <FolhaConvidar visivel={convidar} aoFechar={() => setConvidar(false)} freelancer={{ id: p.id, nome: p.nome }} />
       <FolhaDenunciar visivel={menu} aoFechar={() => setMenu(false)} alvo={{ id: p.id, nome: p.nome }} bloqueado={bloqueado} aoMudarBloqueio={setBloqueado} />

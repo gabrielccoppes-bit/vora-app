@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Botao, Campo, Carregando, Chip, Escolha, Interruptor, T, Tela, Topo, useToast } from '@/components/ui';
-import { DIAS, meuServico, publicarEscala, publicarVaga, salvarInstrucoes, salvarServico, type Vaga } from '@/lib/api';
+import { DIAS, meuServico, publicarEscala, publicarVaga, salvarInstrucoes, salvarServico, type Transporte, type Vaga } from '@/lib/api';
 import { CamposInstrucoes } from '@/components/instrucoes';
 import { Icone } from '@/components/icone';
 import { useSessao } from '@/lib/sessao';
@@ -33,6 +33,7 @@ function PublicarVaga() {
   const [data, setData] = useState(''); // turno com data marcada (vagas normais)
   const [qtd, setQtd] = useState(1);
   const [substituto, setSubstituto] = useState(true);
+  const [transporte, setTransporte] = useState<Transporte>('nao_informado');
   // escala: repete toda semana nos dias escolhidos
   const [escala, setEscala] = useState(false);
   const [diasEscala, setDiasEscala] = useState<number[]>([]); // 0 = domingo
@@ -105,6 +106,7 @@ function PublicarVaga() {
         inicio_em: inicio,
         quantidade: qtd,
         substituto_auto: substituto,
+        transporte,
       };
       let id: string;
       let n = 1;
@@ -125,6 +127,7 @@ function PublicarVaga() {
       setHora('');
       setData('');
       setQtd(1);
+      setTransporte('nao_informado');
       toast(urgente ? 'Vaga urgente publicada! Avisamos os freelancers da cidade.' : n > 1 ? `Escala publicada: ${n} turnos!` : 'Vaga publicada!');
       router.push(`/vaga/${id}`);
     } catch (err) {
@@ -291,6 +294,17 @@ function PublicarVaga() {
         <Campo rotulo="Duração" valor={f.duracao} aoMudar={set('duracao')} placeholder={casa ? 'Ex.: Sex e sáb, 20h às 4h' : 'Ex.: Projeto de 3 meses'} erro={erros.duracao} />
         <Campo rotulo="Descrição" valor={f.descricao} aoMudar={set('descricao')} multiline placeholder={casa ? 'Conte sobre a casa, o público, uniforme, alimentação e transporte no fim do turno.' : 'Conte sobre o projeto, entregas e como é trabalhar com vocês.'} erro={erros.descricao} maxLength={2000} />
         <Campo rotulo="Requisitos (separe por vírgula)" valor={f.requisitos} aoMudar={set('requisitos')} placeholder="React, TypeScript, Git" />
+        {casa ? (
+          <View style={{ marginTop: 16 }}>
+            <T style={{ color: C.muted, fontSize: 13, fontFamily: F.interMed, marginBottom: 8 }}>Volta para casa no fim do turno</T>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(['pago', 'ajuda', 'nao'] as const).map((t) => (
+                <Chip key={t} texto={{ pago: 'A casa paga', ajuda: 'Ajuda de custo', nao: 'Sem transporte' }[t]} ativo={transporte === t} onPress={() => setTransporte(transporte === t ? 'nao_informado' : t)} />
+              ))}
+            </View>
+            <T style={{ color: C.muted2, fontSize: 12.5, marginTop: 6 }}>Vagas com volta paga aparecem com destaque e atraem mais gente para turnos da noite.</T>
+          </View>
+        ) : null}
         <Pressable onPress={() => setVerInstr((x) => !x)} style={st.secao}>
           <View style={{ flex: 1 }}>
             <T style={{ fontFamily: F.interSemi, fontSize: 15 }}>Informações para a equipe</T>

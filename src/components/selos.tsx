@@ -5,7 +5,7 @@ import { C, F } from '@/theme';
 import { Icone, type NomeIcone } from './icone';
 import { T } from './ui';
 
-const ICONE: Record<string, NomeIcone> = { top: 'estrela', presenca: 'check', pontual: 'relogio', veterano: 'escudo' };
+const ICONE: Record<string, NomeIcone> = { top: 'estrela', presenca: 'check', pontual: 'relogio', veterano: 'escudo', casa_vora: 'inicio' };
 
 /** Selos de destaque do freelancer. compacto = só ícones (cartões da busca) */
 export function Selos({ selos, clara, compacto, comDescricao }: { selos?: string[] | null; clara?: boolean; compacto?: boolean; comDescricao?: boolean }) {

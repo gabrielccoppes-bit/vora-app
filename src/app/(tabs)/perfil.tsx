@@ -92,6 +92,9 @@ export default function Perfil() {
             sub={perfil.nota_total ? `★ ${Number(perfil.nota_media).toFixed(1).replace('.', ',')} · ${perfil.nota_total} ${perfil.nota_total === 1 ? 'avaliação' : 'avaliações'} de freelancers` : 'Ainda sem avaliações de freelancers'}>
             Avaliações do meu estabelecimento
           </Item>
+          <Item icone="inicio" onPress={() => router.push('/ranking')} sub={perfil.selos?.includes('casa_vora') ? 'Você tem o selo Casa Vora ✓' : 'Veja sua posição e como ganhar o selo Casa Vora'}>
+            Melhores casas para trabalhar
+          </Item>
         </Grupo>
         <Grupo titulo="Minhas vagas">
           {vagas.length ? (
@@ -111,6 +114,9 @@ export default function Perfil() {
         <Grupo titulo="Minha atividade">
           <Item icone="dinheiro" onPress={() => router.push('/ganhos')} sub="Quanto você ganhou, horas e turnos">
             Meus ganhos
+          </Item>
+          <Item icone="estrela" onPress={() => router.push('/gorjeta')} sub={perfil.elogios_total ? `${perfil.elogios_total} ${perfil.elogios_total === 1 ? 'elogio' : 'elogios'} de clientes` : 'Seu QR Code para elogios e gorjeta por Pix'}>
+            Gorjeta e elogios
           </Item>
           <Item icone="sino" onPress={() => router.push('/convites')} sub={nConvites ? `${nConvites} aguardando resposta` : 'Estabelecimentos que chamaram você'}>
             Convites
@@ -138,6 +144,9 @@ export default function Perfil() {
           </Item>
           <Item icone="predio" onPress={() => router.push('/avaliar')} sub="Conte como foi trabalhar em cada lugar">
             Avaliar estabelecimentos
+          </Item>
+          <Item icone="inicio" onPress={() => router.push('/ranking')} sub="Onde os freelancers mais gostam de trabalhar">
+            Melhores casas para trabalhar
           </Item>
         </Grupo>
       )}

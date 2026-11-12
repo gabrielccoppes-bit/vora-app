@@ -5,12 +5,14 @@ import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { FolhaConvidar, FolhaDenunciar, LinhaReputacao } from '@/components/acoes';
 import { Selos } from '@/components/selos';
+import { CartaoVolta } from '@/components/volta';
 import { CamposInstrucoes, CartaoInstrucoes, paraForm, type FormInstrucoes } from '@/components/instrucoes';
 import { FolhaAvaliar, NotaResumo, type AlvoAvaliacao } from '@/components/avaliacao';
 import { SeloUrgente } from '@/components/cartoes';
 import { Icone, type NomeIcone } from '@/components/icone';
 import { Avatar, BotaoIcone, Botao, Campo, Carregando, Folha, T, Tag, Tela, Topo, useToast, Vazio } from '@/components/ui';
 import {
+  TRANSPORTE,
   abrirConversa,
   alternarSalvo,
   buscarVaga,
@@ -396,6 +398,7 @@ export default function DetalheVaga() {
         />
         <Meta icone="dinheiro" texto={faixaSalarial(vaga)} />
         <Meta icone="maleta" texto={vaga.duracao} />
+        {vaga.transporte && vaga.transporte !== 'nao_informado' ? <Meta icone="carro" texto={TRANSPORTE[vaga.transporte].longo} /> : null}
         <Meta icone="pessoas" texto={`${total} candidatura${total === 1 ? '' : 's'}`} />
       </View>
 
@@ -705,6 +708,11 @@ export default function DetalheVaga() {
                   <Icone nome="seta" tamanho={16} cor="#7A6A61" />
                 </Pressable>
               ) : null}
+              {(() => {
+                const ini = vaga.inicio_em ? new Date(vaga.inicio_em).getTime() : null;
+                const mostrar = !!minha.checkin_em || ini === null || (Date.now() >= ini - 3 * 3600e3 && Date.now() < ini + 30 * 3600e3);
+                return mostrar ? <CartaoVolta vaga={vaga} minha={minha} aoMudar={setMinha} /> : null;
+              })()}
               {!minha.checkin_em ? <Botao titulo="Não vou poder ir" variante="fantasma" onPress={() => (setMotivo(''), setFolha('desistir'))} /> : null}
               <Botao
                 titulo={minha.avaliacao ? `Sua avaliação: ★ ${minha.avaliacao.nota} · Editar` : 'Avaliar este estabelecimento'}
