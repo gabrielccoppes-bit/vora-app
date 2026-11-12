@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CartaoFreela, CartaoVaga } from '@/components/cartoes';
+import { DatasMovimento } from '@/components/datasMovimento';
 import { Icone } from '@/components/icone';
 import { InstalarApp, PrimeirosPassos } from '@/components/primeirosPassos';
 import { Botao, BotaoIcone, Brilho, Carregando, Chip, T, Vazio } from '@/components/ui';
@@ -181,6 +182,7 @@ export default function Inicio() {
 
       <PrimeirosPassos perfil={perfil} versao={versao} />
       <InstalarApp />
+      <DatasMovimento perfil={perfil} />
 
       {empresa ? (
         <>

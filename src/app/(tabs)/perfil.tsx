@@ -115,6 +115,15 @@ export default function Perfil() {
           <Item icone="dinheiro" onPress={() => router.push('/ganhos')} sub="Quanto você ganhou, horas e turnos">
             Meus ganhos
           </Item>
+          <Item icone="arquivo" onPress={() => router.push('/carteira')} sub="Seu histórico verificado, para usar como currículo">
+            Carteira de trabalho
+          </Item>
+          <Item icone="brilho" onPress={() => router.push('/treinamentos')} sub={perfil.selos?.includes('capacitado') ? 'Todos concluídos · selo Capacitado ✓' : 'Lições de 3 minutos que aparecem no seu perfil'}>
+            Treinamentos
+          </Item>
+          <Item icone="dinheiro" onPress={() => router.push('/mei')} sub="DAS, nota fiscal e limite do ano">
+            Meu MEI
+          </Item>
           <Item icone="estrela" onPress={() => router.push('/gorjeta')} sub={perfil.elogios_total ? `${perfil.elogios_total} ${perfil.elogios_total === 1 ? 'elogio' : 'elogios'} de clientes` : 'Seu QR Code para elogios e gorjeta por Pix'}>
             Gorjeta e elogios
           </Item>

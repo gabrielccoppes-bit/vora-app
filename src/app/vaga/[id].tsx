@@ -402,6 +402,17 @@ export default function DetalheVaga() {
         <Meta icone="pessoas" texto={`${total} candidatura${total === 1 ? '' : 's'}`} />
       </View>
 
+      {vaga.exclusivo_ate && new Date(vaga.exclusivo_ate).getTime() > Date.now() ? (
+        <View style={[st.lotacao, { flexDirection: 'row', gap: 10, alignItems: 'center', borderColor: C.orange }]}>
+          <Icone nome="cadeado" cor={C.orange} />
+          <T style={{ color: C.ink2, fontSize: 13.5, flex: 1, lineHeight: 19 }}>
+            {dono
+              ? `Só o seu time da casa (favoritos) vê esta vaga até ${new Date(vaga.exclusivo_ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Depois ela abre para todos.`
+              : `Vaga exclusiva do time da casa até ${new Date(vaga.exclusivo_ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Você foi chamado(a) primeiro!`}
+          </T>
+        </View>
+      ) : null}
+
       {vaga.quantidade > 1 || dono ? (
         <View style={st.lotacao}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

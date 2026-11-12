@@ -8,7 +8,7 @@ import { FolhaConvidar, FolhaDenunciar, GradeDisponibilidade, LinhaReputacao } f
 import { CartaoAvaliacao, Estrelas, NotaResumo } from '@/components/avaliacao';
 import { Icone, type NomeIcone } from '@/components/icone';
 import { Avatar, Botao, BotaoIcone, Carregando, T, Tag, Tela, Topo, useToast, Vazio } from '@/components/ui';
-import { elogiosDoFreela, type Elogio,
+import { treinamentosDe, elogiosDoFreela, type Elogio,
   abrirConversa,
   alternarFavorito,
   avaliacoesDoFreelancer,
@@ -30,6 +30,7 @@ import { elogiosDoFreela, type Elogio,
 import { useSessao } from '@/lib/sessao';
 import { dinheiro } from '@/lib/validacao';
 import { tempoRelativo } from '@/lib/validacao';
+import { MODULOS } from '@/lib/treinamentos';
 import { C, F } from '@/theme';
 
 /** Perfil público do freelancer: serviço + avaliações de estabelecimentos.
@@ -49,6 +50,7 @@ export default function PerfilFreelancer() {
   const [menu, setMenu] = useState(false);
   const [convidar, setConvidar] = useState(false);
   const [elogios, setElogios] = useState<Elogio[]>([]);
+  const [treinos, setTreinos] = useState<string[]>([]);
   const toast = useToast();
   const souEmpresa = eu?.tipo === 'empresa';
 
@@ -76,6 +78,7 @@ export default function PerfilFreelancer() {
           setExps(ex);
           setFavorito(favs.has(freelaId));
           setBloqueado(bloq.has(freelaId));
+          treinamentosDe(freelaId).then((l) => setTreinos(l.map((x) => x.modulo))).catch(() => setTreinos([]));
           elogiosDoFreela(freelaId, 3).then(setElogios).catch(() => setElogios([]));
         } catch {
           setP(null);
@@ -214,6 +217,29 @@ export default function PerfilFreelancer() {
             ) : (
               <T style={{ color: '#7A6A61', marginTop: 8 }}>Marque os dias e turnos em que você está livre.</T>
             )}
+          </View>
+        </>
+      ) : null}
+
+      {treinos.length || meu ? (
+        <>
+          <Divisor />
+          <View style={{ paddingHorizontal: 22, paddingTop: 10 }}>
+            <Titulo texto="Treinamentos Vora" />
+            {treinos.length ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {MODULOS.filter((m) => treinos.includes(m.id)).map((m) => (
+                  <View key={m.id} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: '#E3F2E9' }}>
+                    <T style={{ color: '#1F7A4C', fontSize: 12.5, fontFamily: F.interSemi }}>✓ {m.titulo}</T>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {meu && treinos.length < MODULOS.length ? (
+              <T style={{ color: C.orange, fontSize: 13.5, fontFamily: F.interSemi, marginTop: 10 }} onPress={() => router.push('/treinamentos')}>
+                {treinos.length ? 'Concluir os outros treinamentos ›' : 'Fazer treinamentos de 3 minutos ›'}
+              </T>
+            ) : null}
           </View>
         </>
       ) : null}

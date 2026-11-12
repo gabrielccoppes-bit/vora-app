@@ -1,10 +1,14 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
 import { Botao, Campo, Carregando, Chip, Folha, T, Tela, Topo, useToast, Vazio } from '@/components/ui';
 import {
+  apagarDataMovimento,
+  criarDataMovimento,
+  datasMovimento,
+  type DataMovimento,
   adminDenuncias,
   adminVerificacoes,
   fotosVerificacao,
@@ -21,7 +25,7 @@ import {
 import { tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
 
-type Aba = 'geral' | 'denuncias' | 'verificacoes';
+type Aba = 'geral' | 'denuncias' | 'verificacoes' | 'datas';
 type StatusDen = 'aberta' | 'resolvida' | 'descartada';
 const nomeMotivo = (m: string) => MOTIVOS_DENUNCIA.find((x) => x.id === m)?.nome ?? m;
 
@@ -107,11 +111,12 @@ export default function Admin() {
   return (
     <Tela rolar={false}>
       <Topo titulo="Painel do Vora" />
-      <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingBottom: 12 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingBottom: 12 }}>
         <Chip texto="Visão geral" ativo={aba === 'geral'} onPress={() => setAba('geral')} />
         <Chip texto={`Denúncias${painel?.denuncias_abertas ? ` (${painel.denuncias_abertas})` : ''}`} ativo={aba === 'denuncias'} onPress={() => setAba('denuncias')} />
         <Chip texto={`Verificações${painel?.verificacoes_pendentes ? ` (${painel.verificacoes_pendentes})` : ''}`} ativo={aba === 'verificacoes'} onPress={() => setAba('verificacoes')} />
-      </View>
+        <Chip texto="Datas" ativo={aba === 'datas'} onPress={() => setAba('datas')} />
+      </ScrollView>
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
         refreshControl={
@@ -190,6 +195,8 @@ export default function Admin() {
               </View>
             )}
           </>
+        ) : aba === 'datas' ? (
+          <AdminDatas />
         ) : verifs === null ? (
           <Carregando />
         ) : verifs.length === 0 ? (
@@ -254,5 +261,85 @@ function Mini({ texto, onPress, perigo, desativado }: { texto: string; onPress: 
       style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 1.5, borderColor: perigo ? '#FF8A8A' : C.stroke, opacity: desativado ? 0.5 : 1 }}>
       <T style={{ fontSize: 13, fontFamily: F.interSemi, color: perigo ? '#FF8A8A' : C.cream }}>{texto}</T>
     </Pressable>
+  );
+}
+
+/** Datas de movimento: aparecem no Início e geram aviso 7 dias antes */
+function AdminDatas() {
+  const toast = useToast();
+  const [lista, setLista] = useState<DataMovimento[] | null>(null);
+  const [titulo, setTitulo] = useState('');
+  const [inicio, setInicio] = useState('');
+  const [fim, setFim] = useState('');
+  const [dica, setDica] = useState('');
+  const [onde, setOnde] = useState<'poa' | 'rs' | 'br'>('poa');
+  const [salvando, setSalvando] = useState(false);
+  const carregar = () => datasMovimento().then(setLista).catch(() => setLista([]));
+  useEffect(() => {
+    carregar();
+  }, []);
+  const iso = (d: string) => {
+    const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+  };
+  async function salvar() {
+    const i = iso(inicio);
+    const f = fim.trim() ? iso(fim) : i;
+    if (titulo.trim().length < 3 || !i || !f || f < i) return toast('Preencha o título e as datas no formato DD/MM/AAAA.');
+    setSalvando(true);
+    try {
+      await criarDataMovimento({ titulo: titulo.trim(), inicio: i, fim: f, dica: dica.trim() || null, cidade: onde === 'poa' ? 'Porto Alegre' : null, uf: onde === 'br' ? null : 'RS' });
+      setTitulo('');
+      setInicio('');
+      setFim('');
+      setDica('');
+      toast('Data cadastrada!');
+      carregar();
+    } catch {
+      toast('Não foi possível salvar.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+  return (
+    <View>
+      <T style={{ color: C.muted, lineHeight: 20 }}>Jogos, shows, feriados e eventos. Aparecem no Início e avisam estabelecimentos e freelancers da região 7 dias antes.</T>
+      <Campo rotulo="O que acontece" valor={titulo} aoMudar={setTitulo} placeholder="Ex.: Grenal no Beira-Rio" maxLength={80} />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Campo rotulo="Início" valor={inicio} aoMudar={setInicio} mascara="data" keyboardType="number-pad" placeholder="DD/MM/AAAA" estilo={{ flex: 1 }} />
+        <Campo rotulo="Fim (opcional)" valor={fim} aoMudar={setFim} mascara="data" keyboardType="number-pad" placeholder="DD/MM/AAAA" estilo={{ flex: 1 }} />
+      </View>
+      <Campo rotulo="Dica (opcional)" valor={dica} aoMudar={setDica} placeholder="Ex.: bares da região do estádio lotam" maxLength={240} />
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        <Chip texto="Porto Alegre" ativo={onde === 'poa'} onPress={() => setOnde('poa')} />
+        <Chip texto="Todo o RS" ativo={onde === 'rs'} onPress={() => setOnde('rs')} />
+        <Chip texto="Brasil" ativo={onde === 'br'} onPress={() => setOnde('br')} />
+      </View>
+      <Botao titulo="Cadastrar data" onPress={salvar} carregando={salvando} estilo={{ marginTop: 14 }} />
+      <T style={{ fontSize: 12, color: C.orange2, fontFamily: F.interSemi, letterSpacing: 1.1, marginTop: 24, marginBottom: 6 }}>PRÓXIMAS DATAS</T>
+      {lista === null ? (
+        <Carregando />
+      ) : (
+        lista.map((d) => (
+          <View key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.linha }}>
+            <View style={{ flex: 1 }}>
+              <T style={{ fontFamily: F.interSemi }}>{d.titulo}</T>
+              <T style={{ color: C.muted, fontSize: 12.5 }}>
+                {d.inicio.split('-').reverse().join('/')}
+                {d.fim !== d.inicio ? ` a ${d.fim.split('-').reverse().join('/')}` : ''} · {d.cidade ?? d.uf ?? 'Brasil'}
+              </T>
+            </View>
+            <Mini
+              texto="Apagar"
+              perigo
+              onPress={async () => {
+                await apagarDataMovimento(d.id).catch(() => toast('Não foi possível apagar.'));
+                carregar();
+              }}
+            />
+          </View>
+        ))
+      )}
+    </View>
   );
 }

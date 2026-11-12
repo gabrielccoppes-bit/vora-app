@@ -89,6 +89,10 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="indicar" />
           <Stack.Screen name="gorjeta" />
           <Stack.Screen name="ranking" />
+          <Stack.Screen name="carteira" />
+          <Stack.Screen name="treinamentos" />
+          <Stack.Screen name="treinamento/[modulo]" />
+          <Stack.Screen name="mei" />
         </Stack.Protected>
         {/* Boas-vindas, login e cadastro */}
         <Stack.Protected guard={!sessao}>
@@ -101,6 +105,8 @@ function Navegacao({ pronto }: { pronto: boolean }) {
         <Stack.Screen name="termos" options={{ presentation: 'modal' }} />
         {/* Página pública do QR de gorjeta (com ou sem login) */}
         <Stack.Screen name="g/[codigo]" options={{ animation: 'fade' }} />
+        {/* Verificação pública da carteira de trabalho */}
+        <Stack.Screen name="c/[codigo]" options={{ animation: 'fade' }} />
         {/* Aberta pelo link do e-mail (com ou sem login) */}
         <Stack.Screen name="nova-senha" options={{ animation: 'fade' }} />
       </Stack>

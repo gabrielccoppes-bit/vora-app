@@ -34,6 +34,7 @@ function PublicarVaga() {
   const [qtd, setQtd] = useState(1);
   const [substituto, setSubstituto] = useState(true);
   const [transporte, setTransporte] = useState<Transporte>('nao_informado');
+  const [timeDaCasa, setTimeDaCasa] = useState(false);
   // escala: repete toda semana nos dias escolhidos
   const [escala, setEscala] = useState(false);
   const [diasEscala, setDiasEscala] = useState<number[]>([]); // 0 = domingo
@@ -107,6 +108,7 @@ function PublicarVaga() {
         quantidade: qtd,
         substituto_auto: substituto,
         transporte,
+        exclusivo_ate: timeDaCasa && !urgente ? new Date(Date.now() + 3600e3).toISOString() : null,
       };
       let id: string;
       let n = 1;
@@ -128,6 +130,7 @@ function PublicarVaga() {
       setData('');
       setQtd(1);
       setTransporte('nao_informado');
+      setTimeDaCasa(false);
       toast(urgente ? 'Vaga urgente publicada! Avisamos os freelancers da cidade.' : n > 1 ? `Escala publicada: ${n} turnos!` : 'Vaga publicada!');
       router.push(`/vaga/${id}`);
     } catch (err) {
@@ -270,6 +273,14 @@ function PublicarVaga() {
             <T style={{ color: C.muted, fontSize: 13, flex: 1 }}>{qtd === 1 ? 'pessoa' : 'pessoas · a vaga fecha sozinha quando completar'}</T>
           </View>
         </View>
+        {!urgente ? (
+          <Interruptor
+            titulo="🔒 Chamar primeiro o time da casa"
+            sub="Seus favoritos recebem um aviso e veem a vaga 1 hora antes de todo mundo. Depois ela abre para todos."
+            valor={timeDaCasa}
+            aoMudar={setTimeDaCasa}
+          />
+        ) : null}
         <Interruptor
           titulo="Substituto automático"
           sub="Se alguém cancelar, convidamos na hora seus favoritos e quem já se candidatou. O primeiro que aceitar entra."
