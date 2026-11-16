@@ -163,7 +163,7 @@ export default function PaginaPublicaGorjeta() {
           </View>
         ) : null}
 
-        <Pressable onPress={() => router.push('/boas-vindas')} style={{ marginTop: 26, padding: 16, borderRadius: 18, backgroundColor: '#1A1412', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Pressable onPress={() => router.push('/conheca')} style={{ marginTop: 26, padding: 16, borderRadius: 18, backgroundColor: '#1A1412', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Icone nome="predio" cor={C.orange} />
           <View style={{ flex: 1 }}>
             <T style={{ fontFamily: F.interSemi }}>Tem um bar ou restaurante?</T>

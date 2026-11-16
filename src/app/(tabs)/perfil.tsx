@@ -212,9 +212,15 @@ export default function Perfil() {
         </Item>
       </Grupo>
 
+      <Grupo titulo="Ajuda">
+        <Item icone="chat" onPress={() => router.push({ pathname: '/feedback', params: { tela: 'perfil' } })} sub="Relatar um problema, sugerir ou elogiar">
+          Fale com o Vora
+        </Item>
+      </Grupo>
+
       {admin ? (
         <Grupo titulo="Equipe Vora">
-          <Item icone="escudo" onPress={() => router.push('/admin')} sub="Números, denúncias e verificações">
+          <Item icone="escudo" onPress={() => router.push('/admin')} sub="Métricas, sugestões, denúncias e verificações">
             Painel do Vora
           </Item>
         </Grupo>

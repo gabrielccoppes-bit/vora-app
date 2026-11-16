@@ -13,7 +13,13 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <meta name="theme-color" content="#0D0A09" />
-        <meta name="description" content="Vora — trabalho certo. No seu ritmo." />
+        <title>Vora · Freelancers para bares e restaurantes em Porto Alegre</title>
+        <meta name="description" content="Garçons, bartenders, cozinheiros e equipe de apoio para o seu turno, verificados e avaliados. Para freelancers: turnos perto de você, gorjeta por Pix e volta para casa segura." />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Vora" />
+        <meta property="og:locale" content="pt_BR" />
+        <meta property="og:title" content="Vora · Turno de hoje, equipe de hoje" />
+        <meta property="og:description" content="Conecta bares, restaurantes e eventos de Porto Alegre a freelancers de hospitalidade verificados e avaliados." />
         {/* app instalável pelo site (PWA) */}
         <link rel="manifest" href="/vora-app/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/vora-app/apple-touch-icon.png" />

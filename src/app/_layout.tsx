@@ -93,6 +93,7 @@ function Navegacao({ pronto }: { pronto: boolean }) {
           <Stack.Screen name="treinamentos" />
           <Stack.Screen name="treinamento/[modulo]" />
           <Stack.Screen name="mei" />
+          <Stack.Screen name="feedback" />
         </Stack.Protected>
         {/* Boas-vindas, login e cadastro */}
         <Stack.Protected guard={!sessao}>
@@ -107,6 +108,8 @@ function Navegacao({ pronto }: { pronto: boolean }) {
         <Stack.Screen name="g/[codigo]" options={{ animation: 'fade' }} />
         {/* Verificação pública da carteira de trabalho */}
         <Stack.Screen name="c/[codigo]" options={{ animation: 'fade' }} />
+        {/* Página de apresentação (site) */}
+        <Stack.Screen name="conheca" options={{ animation: 'fade' }} />
         {/* Aberta pelo link do e-mail (com ou sem login) */}
         <Stack.Screen name="nova-senha" options={{ animation: 'fade' }} />
       </Stack>

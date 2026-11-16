@@ -34,7 +34,7 @@ export default function VerificarCarteira() {
             {Platform.OS === 'web' ? <Botao titulo="Salvar PDF" icone="baixar" variante="contornoEscuro" onPress={() => window.print()} estilo={{ marginTop: 14 }} /> : null}
           </>
         )}
-        <Pressable onPress={() => router.push('/boas-vindas')} style={{ marginTop: 22, alignItems: 'center' }}>
+        <Pressable onPress={() => router.push('/conheca')} style={{ marginTop: 22, alignItems: 'center' }}>
           <T style={{ color: '#7A6A61', fontSize: 13 }}>
             Vora · freelancers de bares e restaurantes · <T style={{ color: C.orange, fontSize: 13, fontFamily: F.interSemi }}>conhecer</T>
           </T>

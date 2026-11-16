@@ -5,6 +5,11 @@ import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
 import { Botao, Campo, Carregando, Chip, Folha, T, Tela, Topo, useToast, Vazio } from '@/components/ui';
 import {
+  adminFeedbacks,
+  adminFunil,
+  marcarFeedback,
+  type FeedbackAdmin,
+  type Funil,
   apagarDataMovimento,
   criarDataMovimento,
   datasMovimento,
@@ -25,7 +30,7 @@ import {
 import { tempoRelativo } from '@/lib/validacao';
 import { C, F } from '@/theme';
 
-type Aba = 'geral' | 'denuncias' | 'verificacoes' | 'datas';
+type Aba = 'geral' | 'metricas' | 'feedbacks' | 'denuncias' | 'verificacoes' | 'datas';
 type StatusDen = 'aberta' | 'resolvida' | 'descartada';
 const nomeMotivo = (m: string) => MOTIVOS_DENUNCIA.find((x) => x.id === m)?.nome ?? m;
 
@@ -111,8 +116,10 @@ export default function Admin() {
   return (
     <Tela rolar={false}>
       <Topo titulo="Painel do Vora" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingBottom: 12 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingBottom: 12 }}>
         <Chip texto="Visão geral" ativo={aba === 'geral'} onPress={() => setAba('geral')} />
+        <Chip texto="Métricas" ativo={aba === 'metricas'} onPress={() => setAba('metricas')} />
+        <Chip texto="Sugestões" ativo={aba === 'feedbacks'} onPress={() => setAba('feedbacks')} />
         <Chip texto={`Denúncias${painel?.denuncias_abertas ? ` (${painel.denuncias_abertas})` : ''}`} ativo={aba === 'denuncias'} onPress={() => setAba('denuncias')} />
         <Chip texto={`Verificações${painel?.verificacoes_pendentes ? ` (${painel.verificacoes_pendentes})` : ''}`} ativo={aba === 'verificacoes'} onPress={() => setAba('verificacoes')} />
         <Chip texto="Datas" ativo={aba === 'datas'} onPress={() => setAba('datas')} />
@@ -197,6 +204,10 @@ export default function Admin() {
           </>
         ) : aba === 'datas' ? (
           <AdminDatas />
+        ) : aba === 'metricas' ? (
+          <AdminMetricas />
+        ) : aba === 'feedbacks' ? (
+          <AdminFeedbacks />
         ) : verifs === null ? (
           <Carregando />
         ) : verifs.length === 0 ? (
@@ -343,3 +354,205 @@ function AdminDatas() {
     </View>
   );
 }
+
+const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '–');
+const horas = (h: number | null) => (h === null ? '–' : h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${String(h).replace('.', ',')} h` : `${Math.round(h / 24)} dias`);
+
+/** Funil do piloto: onde as pessoas param e quanto tempo uma vaga leva para ser preenchida */
+function AdminMetricas() {
+  const [dias, setDias] = useState(30);
+  const [f, setF] = useState<Funil | null>(null);
+  const [erro, setErro] = useState(false);
+  useEffect(() => {
+    setF(null);
+    setErro(false);
+    adminFunil(dias).then(setF).catch(() => setErro(true));
+  }, [dias]);
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {[7, 30, 90].map((d) => (
+          <Chip key={d} texto={`${d} dias`} ativo={dias === d} onPress={() => setDias(d)} />
+        ))}
+      </View>
+      <T style={{ color: C.muted, fontSize: 12.5, marginTop: 8, lineHeight: 18 }}>
+        Cada funil acompanha quem se cadastrou (ou vaga publicada) nos últimos {dias} dias e mostra até onde chegou.
+      </T>
+      {erro ? (
+        <Vazio icone="fechar" texto="Não foi possível carregar as métricas." />
+      ) : !f ? (
+        <Carregando />
+      ) : (
+        <>
+          <FunilBarras
+            titulo="Freelancers"
+            etapas={[
+              ['Cadastrados', f.freelancers.cadastrados],
+              ['Completaram o perfil', f.freelancers.perfil_completo],
+              ['Se candidataram', f.freelancers.candidataram],
+              ['Foram contratados', f.freelancers.contratados],
+              ['Fizeram um turno', f.freelancers.turno_feito],
+              ['Fizeram 2 ou mais', f.freelancers.dois_turnos],
+            ]}
+          />
+          <FunilBarras
+            titulo="Estabelecimentos"
+            etapas={[
+              ['Cadastrados', f.estabelecimentos.cadastrados],
+              ['Publicaram vaga', f.estabelecimentos.publicaram],
+              ['Receberam candidatura', f.estabelecimentos.receberam],
+              ['Contrataram', f.estabelecimentos.contrataram],
+              ['Publicaram em 2+ semanas', f.estabelecimentos.voltaram],
+            ]}
+          />
+          <T style={st2.secao}>VAGAS</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <Num v={f.vagas.publicadas} r="publicadas" />
+            <Num v={f.vagas.preenchidas} r={`preenchidas (${pct(f.vagas.preenchidas, f.vagas.publicadas)})`} />
+            <Num v={f.vagas.sem_candidatos_vencidas} r="venceram sem candidato" alerta />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+            <Caixa v={horas(f.vagas.horas_ate_candidatura)} r="até a 1ª candidatura (mediana)" />
+            <Caixa v={horas(f.vagas.horas_ate_contratacao)} r="até a 1ª contratação (mediana)" />
+          </View>
+          <T style={st2.secao}>ÚLTIMAS 8 SEMANAS</T>
+          {(() => {
+            const max = Math.max(1, ...f.semanas.map((w) => Math.max(w.freelancers, w.estabelecimentos, w.contratacoes)));
+            return f.semanas.map((w) => (
+              <View key={w.semana} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <T style={{ color: C.muted, fontSize: 12, width: 44 }}>{new Date(w.semana).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</T>
+                <View style={{ flex: 1, gap: 3 }}>
+                  {(
+                    [
+                      [w.freelancers, C.orange],
+                      [w.estabelecimentos, C.cream],
+                      [w.contratacoes, C.ok],
+                    ] as const
+                  ).map(([n, cor], i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={{ height: 6, borderRadius: 3, backgroundColor: cor, width: `${Math.max(2, (n / max) * 85)}%`, opacity: n ? 1 : 0.25 }} />
+                      <T style={{ color: C.muted, fontSize: 11 }}>{n}</T>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ));
+          })()}
+          <View style={{ flexDirection: 'row', gap: 14, marginTop: 4 }}>
+            <Legenda cor={C.orange} t="freelancers novos" />
+            <Legenda cor={C.cream} t="casas novas" />
+            <Legenda cor={C.ok} t="contratações" />
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+function FunilBarras({ titulo, etapas }: { titulo: string; etapas: [string, number][] }) {
+  const topo = etapas[0][1];
+  return (
+    <View>
+      <T style={st2.secao}>{titulo.toUpperCase()}</T>
+      {etapas.map(([nome, n], i) => {
+        const anterior = i ? etapas[i - 1][1] : n;
+        const queda = i > 0 && anterior > 0 && n / anterior < 0.5;
+        return (
+          <View key={nome} style={{ marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+              <T style={{ flex: 1, fontSize: 13.5 }}>{nome}</T>
+              <T style={{ fontFamily: F.interSemi }}>{n}</T>
+              <T style={{ color: queda ? C.bad : C.muted, fontSize: 12, width: 44, textAlign: 'right' }}>{i ? pct(n, anterior) : ''}</T>
+            </View>
+            <View style={{ height: 8, borderRadius: 4, backgroundColor: '#2A201C', marginTop: 4, overflow: 'hidden' }}>
+              <View style={{ height: 8, width: `${topo ? (n / topo) * 100 : 0}%`, backgroundColor: queda ? C.bad : C.orange }} />
+            </View>
+          </View>
+        );
+      })}
+      <T style={{ color: C.muted2, fontSize: 11.5 }}>A porcentagem compara com a etapa anterior. Em vermelho: onde mais da metade parou.</T>
+    </View>
+  );
+}
+
+function Caixa({ v, r }: { v: string; r: string }) {
+  return (
+    <View style={{ flex: 1, padding: 12, borderRadius: 16, backgroundColor: C.card, borderWidth: 1, borderColor: C.stroke }}>
+      <T style={{ fontFamily: F.soraSemi, fontSize: 20 }}>{v}</T>
+      <T style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{r}</T>
+    </View>
+  );
+}
+
+function Legenda({ cor, t }: { cor: string; t: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+      <View style={{ width: 10, height: 6, borderRadius: 3, backgroundColor: cor }} />
+      <T style={{ color: C.muted, fontSize: 11.5 }}>{t}</T>
+    </View>
+  );
+}
+
+const NOME_FB = { problema: 'Problema', sugestao: 'Sugestão', elogio: 'Elogio' } as const;
+
+/** Mensagens enviadas pelo "Fale com o Vora" */
+function AdminFeedbacks() {
+  const toast = useToast();
+  const [status, setStatus] = useState<'novo' | 'visto' | 'resolvido'>('novo');
+  const [lista, setLista] = useState<FeedbackAdmin[] | null>(null);
+  const carregar = useCallback(() => {
+    setLista(null);
+    adminFeedbacks(status).then(setLista).catch(() => setLista([]));
+  }, [status]);
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+  async function marcar(id: string, s: 'visto' | 'resolvido') {
+    setLista((l) => (l ?? []).filter((x) => x.id !== id));
+    await marcarFeedback(id, s).catch(() => {
+      toast('Não foi possível atualizar.');
+      carregar();
+    });
+  }
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+        <Chip texto="Novas" ativo={status === 'novo'} onPress={() => setStatus('novo')} />
+        <Chip texto="Vistas" ativo={status === 'visto'} onPress={() => setStatus('visto')} />
+        <Chip texto="Resolvidas" ativo={status === 'resolvido'} onPress={() => setStatus('resolvido')} />
+      </View>
+      {lista === null ? (
+        <Carregando />
+      ) : lista.length === 0 ? (
+        <Vazio icone="chat" texto="Nenhuma mensagem aqui." />
+      ) : (
+        <View style={{ gap: 10 }}>
+          {lista.map((f) => (
+            <View key={f.id} style={{ padding: 14, borderRadius: 18, backgroundColor: C.card, borderWidth: 1, borderColor: f.tipo === 'problema' ? '#E5484D66' : C.stroke }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <T style={{ fontFamily: F.interSemi, color: f.tipo === 'problema' ? C.bad : f.tipo === 'elogio' ? C.ok : C.orange2 }}>{NOME_FB[f.tipo]}</T>
+                <T style={{ color: C.muted, fontSize: 12.5, flex: 1 }} numberOfLines={1}>
+                  · {f.autor_nome ?? 'Conta excluída'}
+                  {f.autor_tipo ? ` (${f.autor_tipo === 'empresa' ? 'estabelecimento' : 'freelancer'})` : ''} · {tempoRelativo(f.criado_em)}
+                </T>
+              </View>
+              <T style={{ marginTop: 6, lineHeight: 20 }}>{f.texto}</T>
+              {f.tela || f.aparelho ? (
+                <T style={{ color: C.muted2, fontSize: 11.5, marginTop: 6 }} numberOfLines={2}>
+                  {[f.tela && `tela: ${f.tela}`, f.aparelho].filter(Boolean).join(' · ')}
+                </T>
+              ) : null}
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                {f.autor_id ? <Mini texto="Ver perfil" onPress={() => router.push(f.autor_tipo === 'empresa' ? `/estabelecimento/${f.autor_id}` : `/freela/${f.autor_id}`)} /> : null}
+                {status === 'novo' ? <Mini texto="Marcar como vista" onPress={() => marcar(f.id, 'visto')} /> : null}
+                {status !== 'resolvido' ? <Mini texto="Resolvida" onPress={() => marcar(f.id, 'resolvido')} /> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const st2 = { secao: { fontSize: 12, color: C.orange2, fontFamily: F.interSemi, letterSpacing: 1.1, marginTop: 22, marginBottom: 10 } as const };

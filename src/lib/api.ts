@@ -1239,3 +1239,31 @@ export async function informarMei(cnpj: string | null) {
   const { error } = await supabase.rpc('informar_mei', { p_cnpj: cnpj });
   if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível salvar agora.');
 }
+
+/* ================= Feedback e métricas (piloto) ================= */
+export type TipoFeedback = 'problema' | 'sugestao' | 'elogio';
+export async function enviarFeedback(tipo: TipoFeedback, texto: string, tela: string | null, aparelho: string | null) {
+  const { error } = await supabase.from('feedbacks').insert({ tipo, texto: texto.trim(), tela, aparelho });
+  if (error) throw new Error(error.code === 'P0001' ? error.message : 'Não foi possível enviar agora. Tente de novo.');
+}
+export type FeedbackAdmin = {
+  id: string; tipo: TipoFeedback; texto: string; tela: string | null; aparelho: string | null; status: 'novo' | 'visto' | 'resolvido';
+  criado_em: string; autor_id: string | null; autor_nome: string | null; autor_tipo: string | null;
+};
+export async function adminFeedbacks(status: 'novo' | 'visto' | 'resolvido' | null) {
+  return ok<FeedbackAdmin[]>(await supabase.rpc('admin_feedbacks', { p_status: status }));
+}
+export async function marcarFeedback(id: string, status: 'visto' | 'resolvido') {
+  ok(await supabase.from('feedbacks').update({ status }).eq('id', id));
+}
+export type Funil = {
+  dias: number;
+  freelancers: { cadastrados: number; perfil_completo: number; candidataram: number; contratados: number; turno_feito: number; dois_turnos: number };
+  estabelecimentos: { cadastrados: number; publicaram: number; receberam: number; contrataram: number; voltaram: number };
+  vagas: { publicadas: number; com_candidatura: number; preenchidas: number; sem_candidatos_vencidas: number; horas_ate_candidatura: number | null; horas_ate_contratacao: number | null };
+  semanas: { semana: string; freelancers: number; estabelecimentos: number; contratacoes: number }[];
+  feedbacks_novos: number;
+};
+export async function adminFunil(dias: number) {
+  return ok<Funil>(await supabase.rpc('admin_funil', { p_dias: dias }));
+}
